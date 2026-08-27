@@ -1,59 +1,141 @@
-import addressService from "./address.service.js";
+import asyncHandler from "../../utils/asyncHandler.js";
+import successResponse from "../../utils/response.js";
 
-class AddressController {
-  async createAddress(req, res, next) {
-    try {
-      const address = await addressService.createAddress(req.body);
-      res.status(201).json({ success: true, data: address });
-    } catch (error) {
-      next(error);
-    }
-  }
+import {
+  createCustomerAddress,
+  getCustomerAddresses,
+  getCustomerAddress,
+  updateCustomerAddress,
+  removeCustomerAddress,
+  setDefaultCustomerAddress,
+} from "./address.service.js";
 
-  async getAddress(req, res, next) {
-    try {
-      const address = await addressService.getAddressById(req.params.id);
-      if (!address) {
-        return res.status(404).json({ success: false, message: "Address not found" });
-      }
-      res.status(200).json({ success: true, data: address });
-    } catch (error) {
-      next(error);
-    }
-  }
+// ============================================================
+// CREATE ADDRESS
+// ============================================================
 
-  async getAllAddresses(req, res, next) {
-    try {
-      const addresses = await addressService.getAllAddresses(req.query);
-      res.status(200).json({ success: true, data: addresses });
-    } catch (error) {
-      next(error);
-    }
-  }
+export const createAddressController =
+  asyncHandler(async (req, res) => {
+    const address =
+      await createCustomerAddress(
+        req.customer.id,
+        req.body
+      );
 
-  async updateAddress(req, res, next) {
-    try {
-      const address = await addressService.updateAddress(req.params.id, req.body);
-      if (!address) {
-        return res.status(404).json({ success: false, message: "Address not found" });
-      }
-      res.status(200).json({ success: true, data: address });
-    } catch (error) {
-      next(error);
-    }
-  }
+    return successResponse(res, {
+      statusCode: 201,
+      message:
+        "Address created successfully",
+      data: {
+        address,
+      },
+    });
+  });
 
-  async deleteAddress(req, res, next) {
-    try {
-      const address = await addressService.deleteAddress(req.params.id);
-      if (!address) {
-        return res.status(404).json({ success: false, message: "Address not found" });
-      }
-      res.status(200).json({ success: true, message: "Address deleted successfully" });
-    } catch (error) {
-      next(error);
-    }
-  }
-}
+// ============================================================
+// GET ALL ADDRESSES
+// ============================================================
 
-export default new AddressController();
+export const getAddressesController =
+  asyncHandler(async (req, res) => {
+    const addresses =
+      await getCustomerAddresses(
+        req.customer.id
+      );
+
+    return successResponse(res, {
+      statusCode: 200,
+      message:
+        "Addresses fetched successfully",
+      data: {
+        addresses,
+      },
+    });
+  });
+
+// ============================================================
+// GET SINGLE ADDRESS
+// ============================================================
+
+export const getAddressController =
+  asyncHandler(async (req, res) => {
+    const address =
+      await getCustomerAddress(
+        req.customer.id,
+        req.params.id
+      );
+
+    return successResponse(res, {
+      statusCode: 200,
+      message:
+        "Address fetched successfully",
+      data: {
+        address,
+      },
+    });
+  });
+
+// ============================================================
+// UPDATE ADDRESS
+// ============================================================
+
+export const updateAddressController =
+  asyncHandler(async (req, res) => {
+    const address =
+      await updateCustomerAddress(
+        req.customer.id,
+        req.params.id,
+        req.body
+      );
+
+    return successResponse(res, {
+      statusCode: 200,
+      message:
+        "Address updated successfully",
+      data: {
+        address,
+      },
+    });
+  });
+
+// ============================================================
+// DELETE ADDRESS
+// ============================================================
+
+export const deleteAddressController =
+  asyncHandler(async (req, res) => {
+    const result =
+      await removeCustomerAddress(
+        req.customer.id,
+        req.params.id
+      );
+
+    return successResponse(res, {
+      statusCode: 200,
+      message:
+        "Address deleted successfully",
+      data: result,
+    });
+  });
+
+// ============================================================
+// SET DEFAULT ADDRESS
+// ============================================================
+
+export const setDefaultAddressController =
+  asyncHandler(async (req, res) => {
+    const address =
+      await setDefaultCustomerAddress(
+        req.customer.id,
+        req.params.id
+      );
+
+    return successResponse(res, {
+      statusCode: 200,
+      message:
+        "Default address updated successfully",
+      data: {
+        address,
+      },
+    });
+  });

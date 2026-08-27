@@ -1,25 +1,116 @@
 import Address from "./address.model.js";
 
-class AddressRepository {
-  async create(data) {
-    return await Address.create(data);
-  }
+// ============================================================
+// CREATE ADDRESS
+// ============================================================
 
-  async findById(id) {
-    return await Address.findById(id);
-  }
+export const createAddress = async (data) => {
+  return Address.create(data);
+};
 
-  async findAll(query = {}) {
-    return await Address.find(query);
-  }
+// ============================================================
+// FIND ALL CUSTOMER ADDRESSES
+// ============================================================
 
-  async updateById(id, data) {
-    return await Address.findByIdAndUpdate(id, data, { new: true });
-  }
+export const findAddressesByCustomerId = async (
+  customerId
+) => {
+  return Address.find({
+    customer: customerId,
+  }).sort({
+    isDefault: -1,
+    createdAt: -1,
+  });
+};
 
-  async deleteById(id) {
-    return await Address.findByIdAndDelete(id);
-  }
-}
+// ============================================================
+// FIND ADDRESS BY ID
+// ============================================================
 
-export default new AddressRepository();
+export const findAddressById = async (
+  addressId
+) => {
+  return Address.findById(addressId);
+};
+
+// ============================================================
+// FIND CUSTOMER ADDRESS BY ID
+// ============================================================
+
+export const findCustomerAddressById = async (
+  customerId,
+  addressId
+) => {
+  return Address.findOne({
+    _id: addressId,
+    customer: customerId,
+  });
+};
+
+// ============================================================
+// UPDATE CUSTOMER ADDRESS
+// ============================================================
+
+export const updateAddress = async (
+  customerId,
+  addressId,
+  updateData
+) => {
+  return Address.findOneAndUpdate(
+    {
+      _id: addressId,
+      customer: customerId,
+    },
+    updateData,
+    {
+      new: true,
+      runValidators: true,
+    }
+  );
+};
+
+// ============================================================
+// DELETE CUSTOMER ADDRESS
+// ============================================================
+
+export const deleteAddress = async (
+  customerId,
+  addressId
+) => {
+  return Address.findOneAndDelete({
+    _id: addressId,
+    customer: customerId,
+  });
+};
+
+// ============================================================
+// REMOVE DEFAULT FROM CUSTOMER ADDRESSES
+// ============================================================
+
+export const removeDefaultAddresses = async (
+  customerId
+) => {
+  return Address.updateMany(
+    {
+      customer: customerId,
+      isDefault: true,
+    },
+    {
+      $set: {
+        isDefault: false,
+      },
+    }
+  );
+};
+
+// ============================================================
+// COUNT CUSTOMER ADDRESSES
+// ============================================================
+
+export const countCustomerAddresses = async (
+  customerId
+) => {
+  return Address.countDocuments({
+    customer: customerId,
+  });
+};

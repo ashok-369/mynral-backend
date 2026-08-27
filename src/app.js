@@ -12,7 +12,15 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import customerRoutes from "./modules/customers/customer.routes.js";
 import categoryRoutes from "./modules/categories/category.routes.js";
 import productRoutes from "./modules/products/product.routes.js";
+import addressRoutes from "./modules/addresses/address.routes.js";
+import cartRoutes from "./modules/carts/cart.routes.js";
+import orderRoutes from "./modules/orders/order.routes.js";
 
+// razorpay routes image
+//import paymentRoutes from "./modules/payments/payment.routes.js";
+
+import adminOrderRoutes from "./modules/orders/admin-order.routes.js";
+import adminRoutes from "./modules/admin/index.js";
 
 const app = express();
 
@@ -125,6 +133,33 @@ app.use(
   productRoutes
 );
 
+app.use(
+  "/api/addresses",
+  addressRoutes
+);
+
+app.use(
+  "/api/cart",
+  cartRoutes
+);
+
+app.use("/api/orders", orderRoutes);
+
+
+//razorpay
+// app.use(
+//   "/api/payments",
+//   paymentRoutes
+// );
+
+
+app.use(
+  "/api/admin/orders",
+  adminOrderRoutes
+);
+
+
+app.use("/api/admin", adminRoutes);
 /*
 |--------------------------------------------------------------------------
 | 404 Handler

@@ -126,20 +126,32 @@ export const createOrderController = asyncHandler(
 // GET MY ORDERS
 // ============================================================
 
-export const getMyOrdersController = asyncHandler(
-  async (req, res) => {
-    const result = await getMyOrders(
-      req.customer.id,
-      req.query
-    );
+export const getMyOrdersController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const customerId =
+      req.customer.id;
 
-    return successResponse(res, {
+    const result =
+      await getMyOrders(
+        customerId,
+        req.query
+      );
+
+    return res.status(200).json({
+      success: true,
       statusCode: 200,
-      message: "Orders fetched successfully",
+      message:
+        "Orders fetched successfully",
       data: result,
     });
+  } catch (error) {
+    next(error);
   }
-);
+};
 
 // ============================================================
 // GET SINGLE ORDER

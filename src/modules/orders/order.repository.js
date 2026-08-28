@@ -25,18 +25,105 @@ export const findOrderById = async (orderId) => {
 // ============================================================
 
 export const findCustomerOrders = async (
-  customerId
+  customerId,
+  {
+    status,
+    search,
+    page = 1,
+    limit = 10,
+  } = {}
 ) => {
-  return Order.find({
+  const currentPage = Math.max(
+    Number(page) || 1,
+    1
+  );
+
+  const perPage = Math.min(
+    Math.max(Number(limit) || 10, 1),
+    50
+  );
+
+  const skip =
+    (currentPage - 1) * perPage;
+
+  // ==========================================================
+  // Build Filter
+  // ==========================================================
+
+  const filter = {
     customer: customerId,
-  })
-    .sort({
-      createdAt: -1,
-    })
-    .populate(
-      "items.product",
-      "name slug images price sku"
-    );
+  };
+
+  // ==========================================================
+  // Filter By Status
+  // ==========================================================
+
+  if (status) {
+    filter.orderStatus =
+      String(status)
+        .trim()
+        .toUpperCase();
+  }
+
+  // ==========================================================
+  // Search By Order Number
+  // ==========================================================
+
+  if (search && search.trim()) {
+    filter.orderNumber = {
+      $regex: search.trim(),
+      $options: "i",
+    };
+  }
+
+  // ==========================================================
+  // Total Orders
+  // ==========================================================
+
+  const totalOrders =
+    await Order.countDocuments(filter);
+
+  // ==========================================================
+  // Get Orders
+  // ==========================================================
+
+  const orders =
+    await Order.find(filter)
+      .populate(
+        "items.product",
+        "name slug images price sku"
+      )
+      .sort({
+        createdAt: -1,
+      })
+      .skip(skip)
+      .limit(perPage)
+      .lean();
+
+  // ==========================================================
+  // Pagination
+  // ==========================================================
+
+  const totalPages = Math.ceil(
+    totalOrders / perPage
+  );
+
+  return {
+    orders,
+
+    pagination: {
+      currentPage,
+      limit: perPage,
+      totalOrders,
+      totalPages,
+
+      hasNextPage:
+        currentPage < totalPages,
+
+      hasPreviousPage:
+        currentPage > 1,
+    },
+  };
 };
 
 // ============================================================

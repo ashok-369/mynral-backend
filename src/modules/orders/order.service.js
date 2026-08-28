@@ -1053,22 +1053,32 @@ export const createNewOrder = async (customerId, data) => {
 };
 
 // ============================================================
-// GET CUSTOMER ORDERS
+// GET CUSTOMER ORDER HISTORY
 // ============================================================
 
 export const getMyOrders = async (
   customerId,
   query = {}
 ) => {
-  const orders =
+  const {
+    status,
+    search,
+    page = 1,
+    limit = 10,
+  } = query;
+
+  const result =
     await findCustomerOrders(
-      customerId
+      customerId,
+      {
+        status,
+        search,
+        page,
+        limit,
+      }
     );
 
-  return {
-    orders,
-    count: orders.length,
-  };
+  return result;
 };
 
 // ============================================================

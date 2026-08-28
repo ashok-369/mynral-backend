@@ -17,7 +17,7 @@ const adminAuthMiddleware = (
     return next(
       new ApiError(
         401,
-        "Authentication token is required"
+        "Admin authentication token is required"
       )
     );
   }
@@ -26,9 +26,7 @@ const adminAuthMiddleware = (
   // Validate Bearer Format
   // ==========================================================
 
-  if (
-    !authHeader.startsWith("Bearer ")
-  ) {
+  if (!authHeader.startsWith("Bearer ")) {
     return next(
       new ApiError(
         401,
@@ -48,7 +46,7 @@ const adminAuthMiddleware = (
     return next(
       new ApiError(
         401,
-        "Authentication token is required"
+        "Admin authentication token is required"
       )
     );
   }
@@ -58,19 +56,16 @@ const adminAuthMiddleware = (
   // ==========================================================
 
   try {
-    const decoded =
-      jwt.verify(
-        token,
-        process.env.JWT_SECRET
-      );
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
 
     // ========================================================
     // Validate Token Type
     // ========================================================
 
-    if (
-      decoded.type !== "admin"
-    ) {
+    if (decoded.type !== "admin") {
       return next(
         new ApiError(
           401,
@@ -106,12 +101,11 @@ const adminAuthMiddleware = (
     // ========================================================
 
     next();
-
   } catch (error) {
     return next(
       new ApiError(
         401,
-        "Invalid or expired authentication token"
+        "Invalid or expired admin authentication token"
       )
     );
   }

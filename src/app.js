@@ -19,8 +19,10 @@ import orderRoutes from "./modules/orders/order.routes.js";
 // razorpay routes image
 //import paymentRoutes from "./modules/payments/payment.routes.js";
 
-import adminOrderRoutes from "./modules/orders/admin-order.routes.js";
+// import adminOrderRoutes from "./modules/orders/admin-order.routes.js";
 import adminRoutes from "./modules/admin/index.js";
+import adminOrderRoutes from "./modules/admin/orders/adminOrder.routes.js";
+import adminAuthRoutes from "./modules/admin/auth/adminAuth.routes.js";
 
 const app = express();
 
@@ -160,6 +162,18 @@ app.use(
 
 
 app.use("/api/admin", adminRoutes);
+
+
+app.use(
+  "/api/admin/orders",
+  adminOrderRoutes
+);
+
+
+app.use(
+  "/api/admin/auth",
+  adminAuthRoutes
+);
 /*
 |--------------------------------------------------------------------------
 | 404 Handler

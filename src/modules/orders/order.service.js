@@ -616,6 +616,8 @@
 // };
 
 import mongoose from "mongoose";
+//import Order from "./order.model.js";
+
 import ApiError from "../../utils/ApiError.js";
 
 import {
@@ -1112,22 +1114,23 @@ export const getOrder = async (
   return order;
 };
 
+
+
 // ============================================================
-// CANCEL ORDER
+// CANCEL CUSTOMER ORDER
 // ============================================================
 
 export const cancelOrder = async (
   customerId,
-  orderId
+  orderId,
+  reason = ""
 ) => {
   // ----------------------------------------------------------
   // Validate order ID
   // ----------------------------------------------------------
 
   if (
-    !mongoose.Types.ObjectId.isValid(
-      orderId
-    )
+    !mongoose.Types.ObjectId.isValid(orderId)
   ) {
     throw new ApiError(
       400,
@@ -1153,7 +1156,7 @@ export const cancelOrder = async (
   }
 
   // ----------------------------------------------------------
-  // Check already cancelled
+  // Check current order status
   // ----------------------------------------------------------
 
   if (
@@ -1166,10 +1169,6 @@ export const cancelOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Delivered orders cannot be cancelled
-  // ----------------------------------------------------------
-
   if (
     order.orderStatus ===
     "DELIVERED"
@@ -1179,10 +1178,6 @@ export const cancelOrder = async (
       "Delivered orders cannot be cancelled"
     );
   }
-
-  // ----------------------------------------------------------
-  // Shipped orders cannot be cancelled
-  // ----------------------------------------------------------
 
   if (
     order.orderStatus ===
@@ -1195,6 +1190,55 @@ export const cancelOrder = async (
   }
 
   // ----------------------------------------------------------
+  // Only allow cancellation for:
+  // PLACED / CONFIRMED / PROCESSING
+  // ----------------------------------------------------------
+
+  const cancellableStatuses = [
+    "PLACED",
+    "CONFIRMED",
+    "PROCESSING",
+  ];
+
+  if (
+    !cancellableStatuses.includes(
+      order.orderStatus
+    )
+  ) {
+    throw new ApiError(
+      400,
+      `Order cannot be cancelled when status is ${order.orderStatus}`
+    );
+  }
+
+  // ----------------------------------------------------------
+  // Restore product stock
+  // ----------------------------------------------------------
+
+  for (const item of order.items) {
+    const result =
+      await Product.updateOne(
+        {
+          _id: item.product,
+        },
+        {
+          $inc: {
+            stock: item.quantity,
+          },
+        }
+      );
+
+    if (
+      result.modifiedCount !== 1
+    ) {
+      throw new ApiError(
+        400,
+        `Unable to restore stock for product "${item.name}"`
+      );
+    }
+  }
+
+  // ----------------------------------------------------------
   // Update order
   // ----------------------------------------------------------
 
@@ -1204,9 +1248,11 @@ export const cancelOrder = async (
       {
         orderStatus: "CANCELLED",
 
-        cancelledAt: new Date(),
+        cancelledAt:
+          new Date(),
 
         cancellationReason:
+          reason?.trim() ||
           "Cancelled by customer",
       }
     );
@@ -1219,24 +1265,7 @@ export const cancelOrder = async (
   }
 
   // ----------------------------------------------------------
-  // Restore stock
-  // ----------------------------------------------------------
-
-  for (const item of order.items) {
-    await Product.updateOne(
-      {
-        _id: item.product,
-      },
-      {
-        $inc: {
-          stock: item.quantity,
-        },
-      }
-    );
-  }
-
-  // ----------------------------------------------------------
-  // Return cancelled order
+  // Return updated order
   // ----------------------------------------------------------
 
   return updatedOrder;

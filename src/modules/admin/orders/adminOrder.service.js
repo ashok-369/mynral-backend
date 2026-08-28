@@ -1,5 +1,6 @@
 import Order from "../../orders/order.model.js";
 import ApiError from "../../../utils/ApiError.js";
+import Product from "../../products/product.model.js";
 
 // ============================================================
 // GET ALL ORDERS
@@ -233,7 +234,50 @@ export const updateOrderStatus = async (
   }
 
   // ==========================================================
-  // Update Status
+  // ADMIN CANCELLATION
+  // ==========================================================
+
+  if (status === "CANCELLED") {
+    // --------------------------------------------------------
+    // Restore Product Stock
+    // --------------------------------------------------------
+
+    for (const item of order.items) {
+      const result =
+        await Product.updateOne(
+          {
+            _id: item.product,
+          },
+          {
+            $inc: {
+              stock: item.quantity,
+            },
+          }
+        );
+
+      if (
+        result.modifiedCount !== 1
+      ) {
+        throw new ApiError(
+          400,
+          `Unable to restore stock for product "${item.name}"`
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // Cancellation Details
+    // --------------------------------------------------------
+
+    order.cancelledAt =
+      new Date();
+
+    order.cancellationReason =
+      "Cancelled by admin";
+  }
+
+  // ==========================================================
+  // Update Order Status
   // ==========================================================
 
   order.orderStatus = status;

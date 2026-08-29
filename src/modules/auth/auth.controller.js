@@ -48,7 +48,7 @@ export const registerCustomer =
       await registerCustomerService(
         req.body
       );
-
+// console.log(result)
     return successResponse(res, {
       statusCode: 201,
 

@@ -78,7 +78,8 @@ export const registerCustomer = async (data) => {
         otpExpiresAt,
       }
     );
-
+    // console.log("otp", otp);
+    // console.log("otpExpiresAt", otpExpiresAt);
     return {
       customerId: existingCustomer._id,
       mobile: existingCustomer.mobile,

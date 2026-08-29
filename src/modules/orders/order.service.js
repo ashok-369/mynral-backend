@@ -491,129 +491,7 @@
 // // CANCEL ORDER
 // // ============================================================
 
-// export const cancelOrder = async (
-//   customerId,
-//   orderId
-// ) => {
-//   if (
-//     !mongoose.Types.ObjectId.isValid(
-//       orderId
-//     )
-//   ) {
-//     throw new ApiError(
-//       400,
-//       "Invalid order ID"
-//     );
-//   }
 
-//   // ----------------------------------------------------------
-//   // Find customer's order
-//   // ----------------------------------------------------------
-
-//   const order =
-//     await findCustomerOrder(
-//       orderId,
-//       customerId
-//     );
-
-//   if (!order) {
-//     throw new ApiError(
-//       404,
-//       "Order not found"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Already cancelled
-//   // ----------------------------------------------------------
-
-//   if (
-//     order.orderStatus ===
-//     "CANCELLED"
-//   ) {
-//     throw new ApiError(
-//       400,
-//       "Order is already cancelled"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Cannot cancel delivered order
-//   // ----------------------------------------------------------
-
-//   if (
-//     order.orderStatus ===
-//     "DELIVERED"
-//   ) {
-//     throw new ApiError(
-//       400,
-//       "Delivered orders cannot be cancelled"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Cannot cancel shipped order
-//   // ----------------------------------------------------------
-
-//   if (
-//     order.orderStatus ===
-//     "SHIPPED"
-//   ) {
-//     throw new ApiError(
-//       400,
-//       "Shipped orders cannot be cancelled"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Update order
-//   // ----------------------------------------------------------
-
-//   const updatedOrder =
-//     await updateOrder(
-//       orderId,
-//       {
-//         orderStatus:
-//           "CANCELLED",
-
-//         cancelledAt:
-//           new Date(),
-
-//         cancellationReason:
-//           "Cancelled by customer",
-//       }
-//     );
-
-//   if (!updatedOrder) {
-//     throw new ApiError(
-//       404,
-//       "Order not found"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Restore product stock
-//   // ----------------------------------------------------------
-
-//   for (const item of order.items) {
-//     await Product.updateOne(
-//       {
-//         _id: item.product,
-//       },
-//       {
-//         $inc: {
-//           stock: item.quantity,
-//         },
-//       }
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Return updated order
-//   // ----------------------------------------------------------
-
-//   return updatedOrder;
-// };
 
 import mongoose from "mongoose";
 //import Order from "./order.model.js";
@@ -639,6 +517,12 @@ import {
 import Product from "../products/product.model.js";
 
 import { generateOrderNumber } from "./order.utils.js";
+
+
+import {
+  sendOrderConfirmation,
+  sendOrderCancellation,
+} from "../notifications/notification.service.js";
 
 // ============================================================
 // CREATE NEW COD ORDER
@@ -1039,17 +923,41 @@ export const createNewOrder = async (customerId, data) => {
     throw error;
   }
 
-  // ----------------------------------------------------------
-  // Clear cart
-  // ----------------------------------------------------------
+ // ----------------------------------------------------------
+// Clear cart
+// ----------------------------------------------------------
 
-  await clearCart(customerId);
+await clearCart(customerId);
 
-  // ----------------------------------------------------------
-  // Return created order
-  // ----------------------------------------------------------
+// ----------------------------------------------------------
+// Send order confirmation email
+// ----------------------------------------------------------
 
-  return order;
+try {
+  await sendOrderConfirmation({
+    customerEmail: customer.email,
+    customerName:
+      `${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
+
+    orderNumber: order.orderNumber,
+
+    items: order.items,
+
+    totalAmount: order.totalAmount,
+  });
+} catch (emailError) {
+  // Email failure should NOT fail the order
+  console.error(
+    "⚠️ Order created successfully, but confirmation email failed:",
+    emailError.message
+  );
+}
+
+// ----------------------------------------------------------
+// Return created order
+// ----------------------------------------------------------
+
+return order;
 };
 
 // ============================================================
@@ -1166,6 +1074,22 @@ export const cancelOrder = async (
   }
 
   // ----------------------------------------------------------
+  // Find customer
+  // ----------------------------------------------------------
+
+  const customer =
+    await findCustomerById(
+      customerId
+    );
+
+  if (!customer) {
+    throw new ApiError(
+      404,
+      "Customer not found"
+    );
+  }
+
+  // ----------------------------------------------------------
   // Check current order status
   // ----------------------------------------------------------
 
@@ -1271,6 +1195,34 @@ export const cancelOrder = async (
     throw new ApiError(
       404,
       "Order not found"
+    );
+  }
+
+  // ----------------------------------------------------------
+  // Send cancellation email
+  // ----------------------------------------------------------
+
+  try {
+    await sendOrderCancellation({
+      customerEmail:
+        customer.email,
+
+      customerName:
+        `${customer.firstName || ""} ${
+          customer.lastName || ""
+        }`.trim(),
+
+      orderNumber:
+        updatedOrder.orderNumber,
+
+      reason:
+        updatedOrder.cancellationReason,
+    });
+  } catch (emailError) {
+    // Email failure should NOT fail cancellation
+    console.error(
+      "⚠️ Order cancelled successfully, but cancellation email failed:",
+      emailError.message
     );
   }
 

@@ -6,6 +6,7 @@ import {
   getAllOrdersController,
   getAdminOrderController,
   updateOrderStatusController,
+  cancelAdminOrderController,
 } from "./adminOrder.controller.js";
 
 const router = express.Router();
@@ -33,5 +34,13 @@ router.patch(
   adminAuthMiddleware,
   updateOrderStatusController
 );
+
+// Cancel order
+router.patch(
+  "/:orderId/cancel",
+  adminAuthMiddleware,
+  cancelAdminOrderController
+);
+
 
 export default router;

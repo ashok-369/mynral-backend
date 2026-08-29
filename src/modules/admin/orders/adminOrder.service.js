@@ -1,6 +1,18 @@
+import {
+  sendOrderStatusUpdate,
+  sendOrderShipped,
+  sendOrderDelivered,
+  sendOrderCancellation,
+} from "../../notifications/notification.service.js";
+
+
 import Order from "../../orders/order.model.js";
 import ApiError from "../../../utils/ApiError.js";
 import Product from "../../products/product.model.js";
+
+import {
+  findCustomerById,
+} from "../../customers/customer.repository.js";
 
 // ============================================================
 // GET ALL ORDERS
@@ -132,8 +144,7 @@ export const updateOrderStatus = async (
   // Find Order
   // ==========================================================
 
-  const order =
-    await Order.findById(orderId);
+  const order = await Order.findById(orderId);
 
   if (!order) {
     throw new ApiError(
@@ -146,10 +157,9 @@ export const updateOrderStatus = async (
   // Normalize Status
   // ==========================================================
 
-  const status =
-    String(newStatus)
-      .trim()
-      .toUpperCase();
+  const status = String(newStatus)
+    .trim()
+    .toUpperCase();
 
   // ==========================================================
   // Allowed Statuses
@@ -199,6 +209,7 @@ export const updateOrderStatus = async (
 
     PROCESSING: [
       "SHIPPED",
+      "CANCELLED",
     ],
 
     SHIPPED: [
@@ -211,7 +222,7 @@ export const updateOrderStatus = async (
   };
 
   // ==========================================================
-  // Get Current Status
+  // Current Status
   // ==========================================================
 
   const currentStatus =
@@ -224,9 +235,7 @@ export const updateOrderStatus = async (
   // Validate Transition
   // ==========================================================
 
-  if (
-    !possibleStatuses.includes(status)
-  ) {
+  if (!possibleStatuses.includes(status)) {
     throw new ApiError(
       400,
       `Cannot change order status from ${currentStatus} to ${status}`
@@ -255,9 +264,7 @@ export const updateOrderStatus = async (
           }
         );
 
-      if (
-        result.modifiedCount !== 1
-      ) {
+      if (result.modifiedCount !== 1) {
         throw new ApiError(
           400,
           `Unable to restore stock for product "${item.name}"`
@@ -269,8 +276,7 @@ export const updateOrderStatus = async (
     // Cancellation Details
     // --------------------------------------------------------
 
-    order.cancelledAt =
-      new Date();
+    order.cancelledAt = new Date();
 
     order.cancellationReason =
       "Cancelled by admin";
@@ -286,11 +292,255 @@ export const updateOrderStatus = async (
   // Save Order
   // ==========================================================
 
-  await order.save();
+  const updatedOrder = await order.save();
 
   // ==========================================================
-  // Return Updated Order
+  // SEND CUSTOMER STATUS EMAIL
   // ==========================================================
+
+  try {
+    const customer =
+      await findCustomerById(
+        updatedOrder.customer
+      );
+
+    if (customer?.email) {
+      const customerName =
+        `${customer.firstName || ""} ${
+          customer.lastName || ""
+        }`.trim();
+
+      // ------------------------------------------------------
+      // SHIPPED EMAIL
+      // ------------------------------------------------------
+
+      if (
+        updatedOrder.orderStatus ===
+        "SHIPPED"
+      ) {
+        await sendOrderShipped({
+          customerEmail:
+            customer.email,
+
+          customerName,
+
+          orderNumber:
+            updatedOrder.orderNumber,
+        });
+      }
+
+      // ------------------------------------------------------
+      // DELIVERED EMAIL
+      // ------------------------------------------------------
+
+      else if (
+        updatedOrder.orderStatus ===
+        "DELIVERED"
+      ) {
+        await sendOrderDelivered({
+          customerEmail:
+            customer.email,
+
+          customerName,
+
+          orderNumber:
+            updatedOrder.orderNumber,
+        });
+      }
+
+      // ------------------------------------------------------
+      // OTHER STATUS EMAIL
+      // CONFIRMED / PROCESSING
+      // ------------------------------------------------------
+
+      else if (
+        [
+          "CONFIRMED",
+          "PROCESSING",
+        ].includes(
+          updatedOrder.orderStatus
+        )
+      ) {
+        await sendOrderStatusUpdate({
+          customerEmail:
+            customer.email,
+
+          customerName,
+
+          orderNumber:
+            updatedOrder.orderNumber,
+
+          status:
+            updatedOrder.orderStatus,
+        });
+      }
+    }
+  } catch (emailError) {
+    // --------------------------------------------------------
+    // Email failure must NOT fail order status update
+    // --------------------------------------------------------
+
+    console.error(
+      "⚠️ Order status updated successfully, but email failed:",
+      emailError.message
+    );
+  }
+
+  // ==========================================================
+  // RETURN UPDATED ORDER
+  // ==========================================================
+
+  return updatedOrder;
+};
+
+// ============================================================
+// ADMIN CANCEL ORDER
+// ============================================================
+
+export const cancelAdminOrder = async (
+  orderId,
+  reason = "Cancelled by admin"
+) => {
+  // ----------------------------------------------------------
+  // Find order
+  // ----------------------------------------------------------
+
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new ApiError(
+      404,
+      "Order not found"
+    );
+  }
+
+  // ----------------------------------------------------------
+  // Check current status
+  // ----------------------------------------------------------
+
+  if (order.orderStatus === "CANCELLED") {
+    throw new ApiError(
+      400,
+      "Order is already cancelled"
+    );
+  }
+
+  if (order.orderStatus === "DELIVERED") {
+    throw new ApiError(
+      400,
+      "Delivered orders cannot be cancelled"
+    );
+  }
+
+  if (order.orderStatus === "SHIPPED") {
+    throw new ApiError(
+      400,
+      "Shipped orders cannot be cancelled"
+    );
+  }
+
+  // ----------------------------------------------------------
+  // Allowed cancellation statuses
+  // ----------------------------------------------------------
+
+  const cancellableStatuses = [
+    "PLACED",
+    "CONFIRMED",
+    "PROCESSING",
+  ];
+
+  if (
+    !cancellableStatuses.includes(
+      order.orderStatus
+    )
+  ) {
+    throw new ApiError(
+      400,
+      `Order cannot be cancelled when status is ${order.orderStatus}`
+    );
+  }
+
+  // ----------------------------------------------------------
+  // Restore stock
+  // ----------------------------------------------------------
+
+  for (const item of order.items) {
+    const result =
+      await Product.updateOne(
+        {
+          _id: item.product,
+        },
+        {
+          $inc: {
+            stock: item.quantity,
+          },
+        }
+      );
+
+    if (result.modifiedCount !== 1) {
+      throw new ApiError(
+        400,
+        `Unable to restore stock for product "${item.name}"`
+      );
+    }
+  }
+
+  // ----------------------------------------------------------
+  // Update cancellation details
+  // ----------------------------------------------------------
+
+  order.orderStatus = "CANCELLED";
+
+  order.cancelledAt = new Date();
+
+  order.cancellationReason =
+    reason?.trim() ||
+    "Cancelled by admin";
+
+  // ----------------------------------------------------------
+  // Save
+  // ----------------------------------------------------------
+
+  // ----------------------------------------------------------
+// Send cancellation email
+// ----------------------------------------------------------
+
+try {
+  const customer =
+    await findCustomerById(
+      order.customer
+    );
+
+  if (customer?.email) {
+    const customerName =
+      `${customer.firstName || ""} ${
+        customer.lastName || ""
+      }`.trim();
+
+    await sendOrderCancellation({
+      customerEmail:
+        customer.email,
+
+      customerName,
+
+      orderNumber:
+        order.orderNumber,
+
+      reason:
+        order.cancellationReason,
+    });
+  }
+} catch (emailError) {
+  console.error(
+    "⚠️ Order cancelled successfully, but cancellation email failed:",
+    emailError.message
+  );
+}
+
+  // ----------------------------------------------------------
+  // Return updated order
+  // ----------------------------------------------------------
 
   return order;
 };
+

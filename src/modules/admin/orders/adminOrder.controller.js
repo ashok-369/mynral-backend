@@ -4,6 +4,7 @@ import {
   getAllOrders,
   getAdminOrderById,
   updateOrderStatus,
+   cancelAdminOrder,
 } from "./adminOrder.service.js";
 
 // ============================================================
@@ -105,3 +106,35 @@ export const updateOrderStatusController =
       next(error);
     }
   };
+
+  // ============================================================
+// ADMIN CANCEL ORDER
+// ============================================================
+
+export const cancelAdminOrderController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const { orderId } = req.params;
+    const { reason } = req.body;
+
+    const order =
+      await cancelAdminOrder(
+        orderId,
+        reason
+      );
+
+    return res.status(200).json({
+      success: true,
+      statusCode: 200,
+      message: "Order cancelled successfully",
+      data: {
+        order,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

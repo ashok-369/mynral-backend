@@ -22,6 +22,8 @@ import {
   generateRefreshToken,
 } from "./auth.utils.js";
 
+import { sendOTP } from "../notifications/sms.service.js";
+
 
 // ============================================================
 // Hash Refresh Token

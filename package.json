@@ -12,6 +12,7 @@
   "author": "Digital Elite Service",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.20.0",
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.10.0",
     "compression": "^1.8.1",

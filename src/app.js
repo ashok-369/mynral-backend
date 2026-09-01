@@ -23,6 +23,8 @@ import orderRoutes from "./modules/orders/order.routes.js";
 import adminRoutes from "./modules/admin/index.js";
 import adminOrderRoutes from "./modules/admin/orders/adminOrder.routes.js";
 import adminAuthRoutes from "./modules/admin/auth/adminAuth.routes.js";
+import couponRoutes from "./modules/coupons/coupon.routes.js";
+import wishlistRoutes from "./modules/wishlist/wishlist.routes.js";
 
 const app = express();
 
@@ -174,6 +176,14 @@ app.use(
   "/api/admin/auth",
   adminAuthRoutes
 );
+
+app.use(
+  "/api/coupons",
+  couponRoutes
+);
+
+
+app.use("/api/wishlist", wishlistRoutes);
 /*
 |--------------------------------------------------------------------------
 | 404 Handler

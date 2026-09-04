@@ -11,9 +11,28 @@ import {
   deleteCouponController,
   toggleCouponController,
   validateCouponController,
+  getActiveCouponsController,
 } from "./coupon.controller.js";
 
 const router = express.Router();
+
+// ============================================================
+// CUSTOMER COUPON APIs
+// ============================================================
+
+// Get active and currently valid coupons
+router.get(
+  "/",
+  authMiddleware,
+  getActiveCouponsController
+);
+
+// Validate / apply coupon
+router.post(
+  "/validate",
+  authMiddleware,
+  validateCouponController
+);
 
 // ============================================================
 // ADMIN COUPON APIs
@@ -59,17 +78,6 @@ router.patch(
   "/admin/:couponId/toggle",
   adminAuthMiddleware,
   toggleCouponController
-);
-
-// ============================================================
-// CUSTOMER COUPON API
-// ============================================================
-
-// Validate / apply coupon
-router.post(
-  "/validate",
-  authMiddleware,
-  validateCouponController
 );
 
 export default router;

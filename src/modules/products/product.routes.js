@@ -1,73 +1,109 @@
+// import express from "express";
+
+// import authMiddleware from "../../middlewares/auth.middleware.js";
+
+// import {
+//   createProductController,
+//   getProductsController,
+//   getProductController,
+//   getProductBySlugController,
+//   updateProductController,
+//   deleteProductController,
+//   updateProductStockController,
+// } from "./product.controller.js";
+
+// const router = express.Router();
+
+// // ============================================================
+// // PUBLIC PRODUCT APIs
+// // ============================================================
+
+// // Get all products
+// router.get(
+//   "/",
+//   getProductsController
+// );
+
+// // Get product by slug
+// // Example: /api/products/slug/fresh-tomatoes
+// router.get(
+//   "/slug/:slug",
+//   getProductBySlugController
+// );
+
+// // Get product by ID
+// // Example: /api/products/65f123...
+// router.get(
+//   "/:id",
+//   getProductController
+// );
+
+// // ============================================================
+// // AUTHENTICATED PRODUCT APIs
+// // ============================================================
+
+// // Create product
+// router.post(
+//   "/",
+//   authMiddleware,
+//   createProductController
+// );
+
+// // Update product
+// router.put(
+//   "/:id",
+//   authMiddleware,
+//   updateProductController
+// );
+
+// // Update product stock
+// router.patch(
+//   "/:id/stock",
+//   authMiddleware,
+//   updateProductStockController
+// );
+
+// // Delete product
+// router.delete(
+//   "/:id",
+//   authMiddleware,
+//   deleteProductController
+// );
+
+// export default router;
+
+
 import express from "express";
 
-import authMiddleware from "../../middlewares/auth.middleware.js";
-
 import {
-  createProductController,
-  getProductsController,
-  getProductController,
-  getProductBySlugController,
-  updateProductController,
-  deleteProductController,
-  updateProductStockController,
+  createProduct,
+  getProducts,
+  getProduct,
+  getProductBySlug,
+  updateProduct,
+  deleteProduct,
+  deactivateProduct,
 } from "./product.controller.js";
 
 const router = express.Router();
 
-// ============================================================
-// PUBLIC PRODUCT APIs
-// ============================================================
+// Product CRUD
 
-// Get all products
-router.get(
-  "/",
-  getProductsController
-);
+router.post("/", createProduct);
 
-// Get product by slug
-// Example: /api/products/slug/fresh-tomatoes
-router.get(
-  "/slug/:slug",
-  getProductBySlugController
-);
+router.get("/", getProducts);
 
-// Get product by ID
-// Example: /api/products/65f123...
-router.get(
-  "/:id",
-  getProductController
-);
+router.get("/slug/:slug", getProductBySlug);
 
-// ============================================================
-// AUTHENTICATED PRODUCT APIs
-// ============================================================
+router.get("/:productId", getProduct);
 
-// Create product
-router.post(
-  "/",
-  authMiddleware,
-  createProductController
-);
+router.patch("/:productId", updateProduct);
 
-// Update product
-router.put(
-  "/:id",
-  authMiddleware,
-  updateProductController
-);
+router.delete("/:productId", deleteProduct);
 
-// Update product stock
 router.patch(
-  "/:id/stock",
-  authMiddleware,
-  updateProductStockController
-);
-
-// Delete product
-router.delete(
-  "/:id",
-  authMiddleware,
-  deleteProductController
+  "/:productId/deactivate",
+  deactivateProduct
 );
 
 export default router;

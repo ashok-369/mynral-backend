@@ -133,31 +133,27 @@ const couponSchema = new mongoose.Schema(
 // VALIDATION
 // ============================================================
 
-couponSchema.pre("validate", function (next) {
+couponSchema.pre("validate", function () {
+  // Percentage discount cannot exceed 100%
   if (
     this.discountType === "PERCENTAGE" &&
     this.discountValue > 100
   ) {
-    return next(
-      new Error(
-        "Percentage discount cannot exceed 100%"
-      )
+    throw new Error(
+      "Percentage discount cannot exceed 100%"
     );
   }
 
+  // Expiry date must be after start date
   if (
     this.expiryDate &&
     this.startDate &&
     this.expiryDate <= this.startDate
   ) {
-    return next(
-      new Error(
-        "Expiry date must be after start date"
-      )
+    throw new Error(
+      "Expiry date must be after start date"
     );
   }
-
-  next();
 });
 
 export default mongoose.model(

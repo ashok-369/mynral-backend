@@ -11,7 +11,7 @@ import testRoutes from "./routes/test.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import customerRoutes from "./modules/customers/customer.routes.js";
 import categoryRoutes from "./modules/categories/category.routes.js";
-import productRoutes from "./modules/products/product.routes.js";
+//import productRoutes from "./modules/products/product.routes.js";
 import addressRoutes from "./modules/addresses/address.routes.js";
 import cartRoutes from "./modules/carts/cart.routes.js";
 import orderRoutes from "./modules/orders/order.routes.js";
@@ -25,6 +25,10 @@ import adminOrderRoutes from "./modules/admin/orders/adminOrder.routes.js";
 import adminAuthRoutes from "./modules/admin/auth/adminAuth.routes.js";
 import couponRoutes from "./modules/coupons/coupon.routes.js";
 import wishlistRoutes from "./modules/wishlist/wishlist.routes.js";
+
+import productModuleRoutes from "./modules/products/index.js";
+
+
 
 const app = express();
 
@@ -132,10 +136,12 @@ app.use(
   categoryRoutes
 );
 
-app.use(
-  "/api/products",
-  productRoutes
-);
+// app.use(
+//   "/api/products",
+//   productRoutes
+// );
+
+app.use("/api", productModuleRoutes);
 
 app.use(
   "/api/addresses",

@@ -5,7 +5,7 @@ import Wishlist from "./wishlist.model.js";
 import Product from "../products/product.model.js";
 
 // ============================================================
-// GET MY WISHLIST
+// GET CUSTOMER WISHLIST
 // ============================================================
 
 export const getWishlistController = async (
@@ -14,17 +14,29 @@ export const getWishlistController = async (
   next
 ) => {
   try {
-    const customerId =
-      req.user?.id ||
-      req.user?._id;
+    console.log(
+      "WISHLIST req.customer:",
+      req.customer
+    );
+
+    // ========================================================
+    // GET CUSTOMER ID FROM AUTH MIDDLEWARE
+    // ========================================================
+
+    const customerId = req.customer?.id;
 
     if (!customerId) {
       return res.status(401).json({
         success: false,
         statusCode: 401,
-        message: "Customer authentication required",
+        message:
+          "Customer authentication required",
       });
     }
+
+    // ========================================================
+    // FIND CUSTOMER WISHLIST
+    // ========================================================
 
     const wishlist =
       await Wishlist.findOne({
@@ -47,7 +59,8 @@ export const getWishlistController = async (
       return res.status(200).json({
         success: true,
         statusCode: 200,
-        message: "Wishlist fetched successfully",
+        message:
+          "Wishlist fetched successfully",
         data: {
           wishlist: {
             customer: customerId,
@@ -64,7 +77,8 @@ export const getWishlistController = async (
     return res.status(200).json({
       success: true,
       statusCode: 200,
-      message: "Wishlist fetched successfully",
+      message:
+        "Wishlist fetched successfully",
       data: {
         wishlist,
       },
@@ -84,9 +98,16 @@ export const addToWishlistController = async (
   next
 ) => {
   try {
-    const customerId =
-      req.user?.id ||
-      req.user?._id;
+    console.log(
+      "ADD WISHLIST req.customer:",
+      req.customer
+    );
+
+    // ========================================================
+    // GET CUSTOMER ID
+    // ========================================================
+
+    const customerId = req.customer?.id;
 
     const { productId } = req.params;
 
@@ -98,7 +119,8 @@ export const addToWishlistController = async (
       return res.status(401).json({
         success: false,
         statusCode: 401,
-        message: "Customer authentication required",
+        message:
+          "Customer authentication required",
       });
     }
 
@@ -142,14 +164,19 @@ export const addToWishlistController = async (
         customer: customerId,
       });
 
+    // ========================================================
+    // CREATE NEW WISHLIST
+    // ========================================================
+
     if (!wishlist) {
-      wishlist = await Wishlist.create({
-        customer: customerId,
-        products: [productId],
-      });
+      wishlist =
+        await Wishlist.create({
+          customer: customerId,
+          products: [productId],
+        });
     } else {
       // ======================================================
-      // CHECK DUPLICATE
+      // CHECK DUPLICATE PRODUCT
       // ======================================================
 
       const alreadyExists =
@@ -167,6 +194,10 @@ export const addToWishlistController = async (
             "Product is already in your wishlist",
         });
       }
+
+      // ======================================================
+      // ADD PRODUCT
+      // ======================================================
 
       wishlist.products.push(productId);
 
@@ -215,9 +246,16 @@ export const removeFromWishlistController = async (
   next
 ) => {
   try {
-    const customerId =
-      req.user?.id ||
-      req.user?._id;
+    console.log(
+      "REMOVE WISHLIST req.customer:",
+      req.customer
+    );
+
+    // ========================================================
+    // GET CUSTOMER ID
+    // ========================================================
+
+    const customerId = req.customer?.id;
 
     const { productId } = req.params;
 
@@ -229,7 +267,8 @@ export const removeFromWishlistController = async (
       return res.status(401).json({
         success: false,
         statusCode: 401,
-        message: "Customer authentication required",
+        message:
+          "Customer authentication required",
       });
     }
 
@@ -341,9 +380,16 @@ export const clearWishlistController = async (
   next
 ) => {
   try {
-    const customerId =
-      req.user?.id ||
-      req.user?._id;
+    console.log(
+      "CLEAR WISHLIST req.customer:",
+      req.customer
+    );
+
+    // ========================================================
+    // GET CUSTOMER ID
+    // ========================================================
+
+    const customerId = req.customer?.id;
 
     // ========================================================
     // AUTH CHECK
@@ -353,7 +399,8 @@ export const clearWishlistController = async (
       return res.status(401).json({
         success: false,
         statusCode: 401,
-        message: "Customer authentication required",
+        message:
+          "Customer authentication required",
       });
     }
 
@@ -365,6 +412,10 @@ export const clearWishlistController = async (
       await Wishlist.findOne({
         customer: customerId,
       });
+
+    // ========================================================
+    // ALREADY EMPTY
+    // ========================================================
 
     if (!wishlist) {
       return res.status(200).json({

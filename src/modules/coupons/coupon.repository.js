@@ -133,3 +133,41 @@ export const deleteCoupon = async (
     couponId
   );
 };
+
+// ============================================================
+// FIND ACTIVE CUSTOMER COUPONS
+// ============================================================
+
+export const findActiveCoupons = async () => {
+  const now = new Date();
+
+  return Coupon.find({
+    isActive: true,
+
+    startDate: {
+      $lte: now,
+    },
+
+    expiryDate: {
+      $gte: now,
+    },
+
+    $or: [
+      {
+        usageLimit: null,
+      },
+      {
+        $expr: {
+          $lt: ["$usedCount", "$usageLimit"],
+        },
+      },
+    ],
+  })
+    .select(
+      "code description discountType discountValue maxDiscountAmount minimumOrderAmount startDate expiryDate usageLimit usedCount perCustomerLimit isActive"
+    )
+    .sort({
+      createdAt: -1,
+    })
+    .lean();
+};

@@ -9,7 +9,10 @@ import {
   findAllCoupons,
   updateCoupon,
   deleteCoupon,
+  findActiveCoupons,
 } from "./coupon.repository.js";
+
+import Coupon from "./coupon.model.js";
 
 // ============================================================
 // CREATE COUPON
@@ -596,4 +599,12 @@ export const validateCoupon = async ({
 
     finalAmount,
   };
+};
+
+// ============================================================
+// GET ACTIVE COUPONS FOR CUSTOMER
+// ============================================================
+
+export const getActiveCoupons = async () => {
+   return findActiveCoupons();
 };

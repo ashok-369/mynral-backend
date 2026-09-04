@@ -6,6 +6,7 @@ import {
   removeCoupon,
   toggleCouponStatus,
   validateCoupon,
+  getActiveCoupons,
 } from "./coupon.service.js";
 
 // ============================================================
@@ -212,3 +213,28 @@ export const validateCouponController =
       next(error);
     }
   };
+
+  // ============================================================
+// GET ACTIVE CUSTOMER COUPONS
+// ============================================================
+
+export const getActiveCouponsController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const coupons = await getActiveCoupons();
+
+    return res.status(200).json({
+      success: true,
+      statusCode: 200,
+      message: "Active coupons fetched successfully",
+      data: {
+        coupons,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

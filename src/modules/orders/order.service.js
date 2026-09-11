@@ -1,500 +1,4 @@
-// import mongoose from "mongoose";
-// import ApiError from "../../utils/ApiError.js";
-
-// import {
-//   createOrder,
-//   findCustomerOrder,
-//   findCustomerOrders,
-//   updateOrder,
-// } from "./order.repository.js";
-
-// import {
-//   findCustomerById,
-// } from "../customers/customer.repository.js";
-
-// import {
-//   findAddressById,
-// } from "../addresses/address.repository.js";
-
-// import {
-//   findCartByCustomerId,
-//   clearCart,
-// } from "../carts/cart.repository.js";
-
-// import Product from "../products/product.model.js";
-
-// import {
-//   generateOrderNumber,
-// } from "./order.utils.js";
-
-// // ============================================================
-// // CREATE NEW ORDER
-// // ============================================================
-
-// export const createNewOrder = async (
-//   customerId,
-//   data
-// ) => {
-//   const {
-//     addressId,
-//     paymentMethod = "COD",
-//   } = data;
-
-//   // ----------------------------------------------------------
-//   // Validate address
-//   // ----------------------------------------------------------
-
-//   if (!addressId) {
-//     throw new ApiError(
-//       400,
-//       "Address is required"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Validate payment method
-//   // ----------------------------------------------------------
-
-//   const allowedPaymentMethods = [
-//     "COD",
-//     "ONLINE",
-//     "RAZORPAY"
-//   ];
-
-//   if (
-//     !allowedPaymentMethods.includes(
-//       paymentMethod
-//     )
-//   ) {
-//     throw new ApiError(
-//       400,
-//       "Invalid payment method"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Find customer
-//   // ----------------------------------------------------------
-
-//   const customer =
-//     await findCustomerById(
-//       customerId
-//     );
-
-//   if (!customer) {
-//     throw new ApiError(
-//       404,
-//       "Customer not found"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Check customer status
-//   // ----------------------------------------------------------
-
-//   if (!customer.isActive) {
-//     throw new ApiError(
-//       403,
-//       "Customer account is inactive"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Find address
-//   // ----------------------------------------------------------
-
-//   const address =
-//     await findAddressById(
-//       addressId,
-//       customerId
-//     );
-
-//   if (!address) {
-//     throw new ApiError(
-//       404,
-//       "Delivery address not found"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Find cart
-//   // ----------------------------------------------------------
-
-//   const cart = await findCartByCustomerId(
-//   customerId
-// );
-
-//   if (!cart) {
-//     throw new ApiError(
-//       400,
-//       "Cart not found"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Validate cart items
-//   // ----------------------------------------------------------
-
-//   if (
-//     !cart.items ||
-//     cart.items.length === 0
-//   ) {
-//     throw new ApiError(
-//       400,
-//       "Your cart is empty"
-//     );
-//   }
-
-//   // ----------------------------------------------------------
-//   // Prepare order items
-//   // ----------------------------------------------------------
-
-//   const orderItems = [];
-
-//   let subtotal = 0;
-
-//   // ----------------------------------------------------------
-//   // Validate every product
-//   // ----------------------------------------------------------
-
-//   for (const cartItem of cart.items) {
-//     const productId =
-//       cartItem.product?._id ||
-//       cartItem.product;
-
-//     const quantity =
-//       Number(cartItem.quantity);
-
-//     if (!productId) {
-//       throw new ApiError(
-//         400,
-//         "Invalid product in cart"
-//       );
-//     }
-
-//     if (
-//       !Number.isInteger(quantity) ||
-//       quantity <= 0
-//     ) {
-//       throw new ApiError(
-//         400,
-//         "Invalid product quantity"
-//       );
-//     }
-
-//     // --------------------------------------------------------
-//     // Find product
-//     // --------------------------------------------------------
-
-//     const product =
-//       await Product.findById(
-//         productId
-//       );
-
-//     if (!product) {
-//       throw new ApiError(
-//         404,
-//         `Product not found: ${productId}`
-//       );
-//     }
-
-//     // --------------------------------------------------------
-//     // Product active check
-//     // --------------------------------------------------------
-
-//     if (!product.isActive) {
-//       throw new ApiError(
-//         400,
-//         `Product "${product.name}" is currently unavailable`
-//       );
-//     }
-
-//     // --------------------------------------------------------
-//     // Stock check
-//     // --------------------------------------------------------
-
-//     if (
-//       product.stock < quantity
-//     ) {
-//       throw new ApiError(
-//         400,
-//         `Only ${product.stock} units of "${product.name}" are available`
-//       );
-//     }
-
-//     // --------------------------------------------------------
-//     // Determine price
-//     // --------------------------------------------------------
-
-//     const sellingPrice =
-//       product.discountPrice !== null &&
-//       product.discountPrice !== undefined &&
-//       product.discountPrice <
-//         product.price
-//         ? product.discountPrice
-//         : product.price;
-
-//     const itemTotal =
-//       sellingPrice * quantity;
-
-//     subtotal += itemTotal;
-
-//     // --------------------------------------------------------
-//     // Create order item snapshot
-//     // --------------------------------------------------------
-
-//     orderItems.push({
-//       product: product._id,
-//       name: product.name,
-//       sku: product.sku,
-//       image:
-//         product.images &&
-//         product.images.length > 0
-//           ? product.images[0]
-//           : null,
-//       quantity,
-//       price: sellingPrice,
-//       total: itemTotal,
-//     });
-//   }
-
-//   // ----------------------------------------------------------
-//   // Shipping calculation
-//   // ----------------------------------------------------------
-//   // You can change this business rule later.
-//   // Example: free shipping above ₹999.
-
-//   const shippingCharge =
-//     subtotal >= 999
-//       ? 0
-//       : 50;
-
-//   // ----------------------------------------------------------
-//   // Discount
-//   // ----------------------------------------------------------
-//   // Coupon system will be added later.
-
-//   const discount = 0;
-
-//   // ----------------------------------------------------------
-//   // Final amount
-//   // ----------------------------------------------------------
-
-//   const totalAmount =
-//     subtotal +
-//     shippingCharge -
-//     discount;
-
-//   // ----------------------------------------------------------
-//   // Create address snapshot
-//   // ----------------------------------------------------------
-//   // We save the address inside the order so that
-//   // changing/deleting the customer's address later
-//   // does not change old orders.
-
-//   const shippingAddress = {
-//     firstName:
-//       address.firstName ||
-//       customer.firstName,
-
-//     lastName:
-//       address.lastName ||
-//       customer.lastName ||
-//       "",
-
-//     mobile:
-//       address.mobile ||
-//       customer.mobile,
-
-//     addressLine1:
-//       address.addressLine1,
-
-//     addressLine2:
-//       address.addressLine2 || "",
-
-//     city:
-//       address.city,
-
-//     state:
-//       address.state,
-
-//     pincode:
-//       address.pincode,
-
-//     landmark:
-//       address.landmark || "",
-//   };
-
-//   // ----------------------------------------------------------
-//   // Generate order number
-//   // ----------------------------------------------------------
-
-//   const orderNumber =
-//     generateOrderNumber();
-
-//   // ----------------------------------------------------------
-//   // Create order
-//   // ----------------------------------------------------------
-
-//   const orderData = {
-//     customer: customerId,
-
-//     orderNumber,
-
-//     items: orderItems,
-
-//     shippingAddress,
-
-//     subtotal,
-
-//     shippingCharge,
-
-//     discount,
-
-//     totalAmount,
-
-//     paymentMethod,
-
-//     paymentStatus:
-//       paymentMethod === "COD"
-//         ? "PENDING"
-//         : "PENDING",
-
-//     orderStatus: "PLACED",
-//   };
-
-//   // ----------------------------------------------------------
-//   // Create order in database
-//   // ----------------------------------------------------------
-
-//   const order =
-//     await createOrder(
-//       orderData
-//     );
-
-//   // ----------------------------------------------------------
-//   // Reduce product stock
-//   // ----------------------------------------------------------
-//   // Stock is reduced only after order creation.
-
-//   try {
-//     for (const item of orderItems) {
-//       const result =
-//         await Product.updateOne(
-//           {
-//             _id: item.product,
-//             stock: {
-//               $gte: item.quantity,
-//             },
-//           },
-//           {
-//             $inc: {
-//               stock:
-//                 -item.quantity,
-//             },
-//           }
-//         );
-
-//       if (
-//         result.modifiedCount !== 1
-//       ) {
-//         throw new ApiError(
-//           400,
-//           `Unable to update stock for product "${item.name}"`
-//         );
-//       }
-//     }
-//   } catch (error) {
-//     // --------------------------------------------------------
-//     // If stock update fails, delete created order
-//     // --------------------------------------------------------
-
-//     await mongoose
-//       .model("Order")
-//       .findByIdAndDelete(
-//         order._id
-//       );
-
-//     throw error;
-//   }
-
-//   // ----------------------------------------------------------
-//   // Clear cart
-//   // ----------------------------------------------------------
-
-//   await clearCart(
-//     customerId
-//   );
-
-//   // ----------------------------------------------------------
-//   // Return order
-//   // ----------------------------------------------------------
-
-//   return order;
-// };
-
-// // ============================================================
-// // GET CUSTOMER ORDERS
-// // ============================================================
-
-// export const getMyOrders = async (
-//   customerId,
-//   query = {}
-// ) => {
-//   const orders =
-//     await findCustomerOrders(
-//       customerId
-//     );
-
-//   return {
-//     orders,
-//     count: orders.length,
-//   };
-// };
-
-// // ============================================================
-// // GET SINGLE ORDER
-// // ============================================================
-
-// export const getOrder = async (
-//   customerId,
-//   orderId
-// ) => {
-//   if (
-//     !mongoose.Types.ObjectId.isValid(
-//       orderId
-//     )
-//   ) {
-//     throw new ApiError(
-//       400,
-//       "Invalid order ID"
-//     );
-//   }
-
-//   const order =
-//     await findCustomerOrder(
-//       orderId,
-//       customerId
-//     );
-
-//   if (!order) {
-//     throw new ApiError(
-//       404,
-//       "Order not found"
-//     );
-//   }
-
-//   return order;
-// };
-
-// // ============================================================
-// // CANCEL ORDER
-// // ============================================================
-
-
-
 import mongoose from "mongoose";
-//import Order from "./order.model.js";
 
 import ApiError from "../../utils/ApiError.js";
 
@@ -515,13 +19,15 @@ import {
 } from "../carts/cart.repository.js";
 
 import Product from "../products/product.model.js";
+import Variant from "../products/variant.model.js";
 
 import { generateOrderNumber } from "./order.utils.js";
-
 
 import {
   sendOrderConfirmation,
   sendOrderCancellation,
+  createCustomerOrderNotification,
+  createAdminOrderNotification,
 } from "../notifications/notification.service.js";
 
 // ============================================================
@@ -534,9 +40,9 @@ export const createNewOrder = async (customerId, data) => {
     paymentMethod = "COD",
   } = data;
 
-  // ----------------------------------------------------------
-  // Validate payment method
-  // ----------------------------------------------------------
+  // ==========================================================
+  // VALIDATE PAYMENT METHOD
+  // ==========================================================
 
   if (paymentMethod !== "COD") {
     throw new ApiError(
@@ -545,9 +51,9 @@ export const createNewOrder = async (customerId, data) => {
     );
   }
 
-  // ----------------------------------------------------------
-  // Validate address
-  // ----------------------------------------------------------
+  // ==========================================================
+  // VALIDATE ADDRESS
+  // ==========================================================
 
   if (!addressId) {
     throw new ApiError(
@@ -563,9 +69,9 @@ export const createNewOrder = async (customerId, data) => {
     );
   }
 
-  // ----------------------------------------------------------
-  // Validate customer ID
-  // ----------------------------------------------------------
+  // ==========================================================
+  // VALIDATE CUSTOMER ID
+  // ==========================================================
 
   if (!mongoose.Types.ObjectId.isValid(customerId)) {
     throw new ApiError(
@@ -574,9 +80,9 @@ export const createNewOrder = async (customerId, data) => {
     );
   }
 
-  // ----------------------------------------------------------
-  // Find customer
-  // ----------------------------------------------------------
+  // ==========================================================
+  // FIND CUSTOMER
+  // ==========================================================
 
   const customer = await findCustomerById(customerId);
 
@@ -587,9 +93,9 @@ export const createNewOrder = async (customerId, data) => {
     );
   }
 
-  // ----------------------------------------------------------
-  // Check customer status
-  // ----------------------------------------------------------
+  // ==========================================================
+  // CHECK CUSTOMER STATUS
+  // ==========================================================
 
   if (!customer.isActive) {
     throw new ApiError(
@@ -598,9 +104,9 @@ export const createNewOrder = async (customerId, data) => {
     );
   }
 
-  // ----------------------------------------------------------
-  // Find customer address
-  // ----------------------------------------------------------
+  // ==========================================================
+  // FIND CUSTOMER ADDRESS
+  // ==========================================================
 
   const address = await findAddressById(
     addressId,
@@ -614,9 +120,9 @@ export const createNewOrder = async (customerId, data) => {
     );
   }
 
-  // ----------------------------------------------------------
-  // Find cart
-  // ----------------------------------------------------------
+  // ==========================================================
+  // FIND CART
+  // ==========================================================
 
   const cart = await findCartByCustomerId(
     customerId
@@ -629,9 +135,9 @@ export const createNewOrder = async (customerId, data) => {
     );
   }
 
-  // ----------------------------------------------------------
-  // Validate cart
-  // ----------------------------------------------------------
+  // ==========================================================
+  // VALIDATE CART
+  // ==========================================================
 
   if (
     !cart.items ||
@@ -643,29 +149,46 @@ export const createNewOrder = async (customerId, data) => {
     );
   }
 
-  // ----------------------------------------------------------
-  // Prepare order items
-  // ----------------------------------------------------------
+  // ==========================================================
+  // PREPARE ORDER ITEMS
+  // ==========================================================
 
   const orderItems = [];
 
   let subtotal = 0;
 
-  // ----------------------------------------------------------
-  // Validate products and stock
-  // ----------------------------------------------------------
+  // ==========================================================
+  // VALIDATE CART ITEMS
+  // ==========================================================
 
   for (const cartItem of cart.items) {
+    // --------------------------------------------------------
+    // PRODUCT ID
+    // --------------------------------------------------------
+
     const productId =
       cartItem.product?._id ||
       cartItem.product;
+
+    // --------------------------------------------------------
+    // VARIANT ID
+    // --------------------------------------------------------
+
+    const variantId =
+      cartItem.variant?._id ||
+      cartItem.variant ||
+      null;
+
+    // --------------------------------------------------------
+    // QUANTITY
+    // --------------------------------------------------------
 
     const quantity = Number(
       cartItem.quantity
     );
 
     // --------------------------------------------------------
-    // Validate product ID
+    // VALIDATE PRODUCT ID
     // --------------------------------------------------------
 
     if (
@@ -681,7 +204,7 @@ export const createNewOrder = async (customerId, data) => {
     }
 
     // --------------------------------------------------------
-    // Validate quantity
+    // VALIDATE QUANTITY
     // --------------------------------------------------------
 
     if (
@@ -694,9 +217,9 @@ export const createNewOrder = async (customerId, data) => {
       );
     }
 
-    // --------------------------------------------------------
-    // Find latest product
-    // --------------------------------------------------------
+    // ========================================================
+    // FIND LATEST PRODUCT
+    // ========================================================
 
     const product = await Product.findById(
       productId
@@ -710,7 +233,7 @@ export const createNewOrder = async (customerId, data) => {
     }
 
     // --------------------------------------------------------
-    // Product active check
+    // PRODUCT ACTIVE CHECK
     // --------------------------------------------------------
 
     if (!product.isActive) {
@@ -720,45 +243,239 @@ export const createNewOrder = async (customerId, data) => {
       );
     }
 
-    // --------------------------------------------------------
-    // Stock validation
-    // --------------------------------------------------------
+    // ========================================================
+    // PRICE / STOCK VARIABLES
+    // ========================================================
 
-    if (product.stock < quantity) {
+    let sellingPrice;
+    let availableStock;
+    let itemSku;
+    let variant = null;
+
+    // ========================================================
+    // VARIANT PRODUCT
+    // ========================================================
+
+    if (variantId) {
+      // ------------------------------------------------------
+      // VALIDATE VARIANT ID
+      // ------------------------------------------------------
+
+      if (
+        !mongoose.Types.ObjectId.isValid(
+          variantId
+        )
+      ) {
+        throw new ApiError(
+          400,
+          "Invalid product variant"
+        );
+      }
+
+      // ------------------------------------------------------
+      // FIND VARIANT
+      // ------------------------------------------------------
+
+      variant = await Variant.findOne({
+        _id: variantId,
+        product: productId,
+      });
+
+      if (!variant) {
+        throw new ApiError(
+          404,
+          `Variant not found for "${product.name}"`
+        );
+      }
+
+      // ------------------------------------------------------
+      // VARIANT ACTIVE CHECK
+      // ------------------------------------------------------
+
+      if (!variant.isActive) {
+        throw new ApiError(
+          400,
+          `Variant of "${product.name}" is currently unavailable`
+        );
+      }
+
+      // ------------------------------------------------------
+      // VARIANT STOCK
+      // ------------------------------------------------------
+
+      availableStock = Number(
+        variant.stock
+      );
+
+      if (
+        !Number.isFinite(
+          availableStock
+        ) ||
+        availableStock < quantity
+      ) {
+        throw new ApiError(
+          400,
+          `Only ${availableStock || 0} units of "${product.name}" are available`
+        );
+      }
+
+      // ------------------------------------------------------
+      // VARIANT PRICE
+      // ------------------------------------------------------
+
+      const variantPrice = Number(
+        variant.price
+      );
+
+      const variantDiscountPrice =
+        variant.discountPrice !== null &&
+        variant.discountPrice !== undefined
+          ? Number(variant.discountPrice)
+          : null;
+
+      if (
+        !Number.isFinite(
+          variantPrice
+        ) ||
+        variantPrice < 0
+      ) {
+        throw new ApiError(
+          400,
+          `Invalid price for variant of "${product.name}"`
+        );
+      }
+
+      if (
+        variantDiscountPrice !== null &&
+        Number.isFinite(
+          variantDiscountPrice
+        ) &&
+        variantDiscountPrice >= 0 &&
+        variantDiscountPrice < variantPrice
+      ) {
+        sellingPrice =
+          variantDiscountPrice;
+      } else {
+        sellingPrice =
+          variantPrice;
+      }
+
+      itemSku =
+        variant.sku ||
+        product.sku;
+
+    } else {
+      // ======================================================
+      // PRODUCT WITHOUT VARIANT
+      // ======================================================
+
+      availableStock = Number(
+        product.stock
+      );
+
+      if (
+        !Number.isFinite(
+          availableStock
+        ) ||
+        availableStock < quantity
+      ) {
+        throw new ApiError(
+          400,
+          `Only ${availableStock || 0} units of "${product.name}" are available`
+        );
+      }
+
+      // ------------------------------------------------------
+      // PRODUCT PRICE
+      // ------------------------------------------------------
+
+      const productPrice = Number(
+        product.price
+      );
+
+      const productDiscountPrice =
+        product.discountPrice !== null &&
+        product.discountPrice !== undefined
+          ? Number(product.discountPrice)
+          : null;
+
+      if (
+        !Number.isFinite(
+          productPrice
+        ) ||
+        productPrice < 0
+      ) {
+        throw new ApiError(
+          400,
+          `Invalid price for product "${product.name}"`
+        );
+      }
+
+      if (
+        productDiscountPrice !== null &&
+        Number.isFinite(
+          productDiscountPrice
+        ) &&
+        productDiscountPrice >= 0 &&
+        productDiscountPrice < productPrice
+      ) {
+        sellingPrice =
+          productDiscountPrice;
+      } else {
+        sellingPrice =
+          productPrice;
+      }
+
+      itemSku =
+        product.sku;
+    }
+
+    // ========================================================
+    // VALIDATE FINAL PRICE
+    // ========================================================
+
+    if (
+      !Number.isFinite(
+        sellingPrice
+      ) ||
+      sellingPrice < 0
+    ) {
       throw new ApiError(
         400,
-        `Only ${product.stock} units of "${product.name}" are available`
+        `Invalid selling price for "${product.name}"`
       );
     }
 
-    // --------------------------------------------------------
-    // Calculate selling price
-    // --------------------------------------------------------
-
-    const sellingPrice =
-      product.discountPrice !== null &&
-      product.discountPrice !== undefined &&
-      product.discountPrice < product.price
-        ? product.discountPrice
-        : product.price;
-
-    // --------------------------------------------------------
-    // Calculate item total
-    // --------------------------------------------------------
+    // ========================================================
+    // CALCULATE ITEM TOTAL
+    // ========================================================
 
     const itemTotal =
       sellingPrice * quantity;
 
+    if (
+      !Number.isFinite(
+        itemTotal
+      )
+    ) {
+      throw new ApiError(
+        400,
+        `Unable to calculate total for "${product.name}"`
+      );
+    }
+
     subtotal += itemTotal;
 
-    // --------------------------------------------------------
-    // Order item snapshot
-    // --------------------------------------------------------
+    // ========================================================
+    // CREATE ORDER ITEM SNAPSHOT
+    // ========================================================
 
-    orderItems.push({
+    const orderItem = {
       product: product._id,
+
       name: product.name,
-      sku: product.sku,
+
+      sku: itemSku,
 
       image:
         product.images &&
@@ -771,39 +488,73 @@ export const createNewOrder = async (customerId, data) => {
       price: sellingPrice,
 
       total: itemTotal,
-    });
+    };
+
+    // --------------------------------------------------------
+    // ADD VARIANT INFORMATION IF AVAILABLE
+    // --------------------------------------------------------
+
+    if (variant) {
+      orderItem.variant = variant._id;
+
+      orderItem.weight =
+        variant.weight;
+
+      orderItem.weightUnit =
+        variant.weightUnit;
+    }
+
+    orderItems.push(
+      orderItem
+    );
   }
 
-  // ----------------------------------------------------------
-  // Shipping calculation
-  // ----------------------------------------------------------
+  // ==========================================================
+  // SHIPPING CALCULATION
+  // ==========================================================
   // Free shipping for orders >= ₹999
   // Otherwise ₹50
+  // ==========================================================
 
   const shippingCharge =
     subtotal >= 999
       ? 0
       : 50;
 
-  // ----------------------------------------------------------
-  // Discount
-  // ----------------------------------------------------------
+  // ==========================================================
+  // DISCOUNT
+  // ==========================================================
   // Coupon system will be added later.
+  // ==========================================================
 
   const discount = 0;
 
-  // ----------------------------------------------------------
-  // Final amount
-  // ----------------------------------------------------------
+  // ==========================================================
+  // FINAL AMOUNT
+  // ==========================================================
 
   const totalAmount =
     subtotal +
     shippingCharge -
     discount;
 
-  // ----------------------------------------------------------
-  // Address snapshot
-  // ----------------------------------------------------------
+  if (
+    !Number.isFinite(
+      subtotal
+    ) ||
+    !Number.isFinite(
+      totalAmount
+    )
+  ) {
+    throw new ApiError(
+      400,
+      "Unable to calculate order amount"
+    );
+  }
+
+  // ==========================================================
+  // ADDRESS SNAPSHOT
+  // ==========================================================
 
   const shippingAddress = {
     firstName:
@@ -823,7 +574,8 @@ export const createNewOrder = async (customerId, data) => {
       address.addressLine1,
 
     addressLine2:
-      address.addressLine2 || "",
+      address.addressLine2 ||
+      "",
 
     city:
       address.city,
@@ -835,19 +587,20 @@ export const createNewOrder = async (customerId, data) => {
       address.pincode,
 
     landmark:
-      address.landmark || "",
+      address.landmark ||
+      "",
   };
 
-  // ----------------------------------------------------------
-  // Generate order number
-  // ----------------------------------------------------------
+  // ==========================================================
+  // GENERATE ORDER NUMBER
+  // ==========================================================
 
   const orderNumber =
     generateOrderNumber();
 
-  // ----------------------------------------------------------
-  // Prepare order
-  // ----------------------------------------------------------
+  // ==========================================================
+  // PREPARE ORDER
+  // ==========================================================
 
   const orderData = {
     customer: customerId,
@@ -873,91 +626,232 @@ export const createNewOrder = async (customerId, data) => {
     orderStatus: "PLACED",
   };
 
-  // ----------------------------------------------------------
-  // Create order
-  // ----------------------------------------------------------
+  // ==========================================================
+  // CREATE ORDER
+  // ==========================================================
 
-  const order = await createOrder(
-    orderData
-  );
+  const order =
+    await createOrder(
+      orderData
+    );
 
-  // ----------------------------------------------------------
-  // Reduce stock
-  // ----------------------------------------------------------
+  // ==========================================================
+  // REDUCE STOCK
+  // ==========================================================
 
   try {
     for (const item of orderItems) {
-      const result =
-        await Product.updateOne(
-          {
-            _id: item.product,
-            stock: {
-              $gte: item.quantity,
-            },
-          },
-          {
-            $inc: {
-              stock: -item.quantity,
-            },
-          }
-        );
+      // ------------------------------------------------------
+      // VARIANT STOCK
+      // ------------------------------------------------------
 
-      if (
-        result.modifiedCount !== 1
-      ) {
-        throw new ApiError(
-          400,
-          `Unable to update stock for product "${item.name}"`
-        );
+      if (item.variant) {
+        const result =
+          await Variant.updateOne(
+            {
+              _id: item.variant,
+
+              product:
+                item.product,
+
+              stock: {
+                $gte:
+                  item.quantity,
+              },
+            },
+            {
+              $inc: {
+                stock:
+                  -item.quantity,
+              },
+            }
+          );
+
+        if (
+          result.modifiedCount !== 1
+        ) {
+          throw new ApiError(
+            400,
+            `Unable to update stock for variant of "${item.name}"`
+          );
+        }
+      }
+
+      // ------------------------------------------------------
+      // PRODUCT STOCK
+      // ------------------------------------------------------
+      // Only update product stock when the product itself
+      // does not use a variant.
+      // ------------------------------------------------------
+
+      else {
+        const result =
+          await Product.updateOne(
+            {
+              _id:
+                item.product,
+
+              stock: {
+                $gte:
+                  item.quantity,
+              },
+            },
+            {
+              $inc: {
+                stock:
+                  -item.quantity,
+              },
+            }
+          );
+
+        if (
+          result.modifiedCount !== 1
+        ) {
+          throw new ApiError(
+            400,
+            `Unable to update stock for product "${item.name}"`
+          );
+        }
       }
     }
   } catch (error) {
     // --------------------------------------------------------
-    // Delete order if stock update fails
+    // DELETE ORDER IF STOCK UPDATE FAILS
     // --------------------------------------------------------
 
     await mongoose
       .model("Order")
-      .findByIdAndDelete(order._id);
+      .findByIdAndDelete(
+        order._id
+      );
 
     throw error;
   }
 
- // ----------------------------------------------------------
-// Clear cart
-// ----------------------------------------------------------
+  // ==========================================================
+  // CLEAR CART
+  // ==========================================================
 
-await clearCart(customerId);
-
-// ----------------------------------------------------------
-// Send order confirmation email
-// ----------------------------------------------------------
-
-try {
-  await sendOrderConfirmation({
-    customerEmail: customer.email,
-    customerName:
-      `${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
-
-    orderNumber: order.orderNumber,
-
-    items: order.items,
-
-    totalAmount: order.totalAmount,
-  });
-} catch (emailError) {
-  // Email failure should NOT fail the order
-  console.error(
-    "⚠️ Order created successfully, but confirmation email failed:",
-    emailError.message
+  await clearCart(
+    customerId
   );
-}
 
-// ----------------------------------------------------------
-// Return created order
-// ----------------------------------------------------------
+  // ==========================================================
+  // CUSTOMER ORDER NOTIFICATION
+  // ==========================================================
 
-return order;
+  try {
+    await createCustomerOrderNotification({
+      customerId:
+        customerId,
+
+      orderId:
+        order._id,
+
+      title:
+        "Order Placed Successfully",
+
+      message:
+        `Your order ${order.orderNumber} has been placed successfully.`,
+
+      data: {
+        orderNumber:
+          order.orderNumber,
+
+        status:
+          order.orderStatus,
+
+        totalAmount:
+          order.totalAmount,
+      },
+    });
+  } catch (notificationError) {
+    // Notification failure must NOT fail the order
+    console.error(
+      "⚠️ Order created successfully, but customer notification failed:",
+      notificationError.message
+    );
+  }
+
+  // ==========================================================
+  // ADMIN ORDER NOTIFICATION
+  // ==========================================================
+
+  try {
+    await createAdminOrderNotification({
+      customerId:
+        customerId,
+
+      orderId:
+        order._id,
+
+      title:
+        "New Order Received",
+
+      message:
+        `New order ${order.orderNumber} has been placed by ${
+          customer.firstName ||
+          "Customer"
+        }.`,
+
+      data: {
+        orderNumber:
+          order.orderNumber,
+
+        customerId:
+          customerId,
+
+        status:
+          order.orderStatus,
+
+        totalAmount:
+          order.totalAmount,
+      },
+    });
+  } catch (notificationError) {
+    // Notification failure must NOT fail the order
+    console.error(
+      "⚠️ Order created successfully, but admin notification failed:",
+      notificationError.message
+    );
+  }
+
+  // ==========================================================
+  // SEND ORDER CONFIRMATION EMAIL
+  // ==========================================================
+
+  try {
+    await sendOrderConfirmation({
+      customerEmail:
+        customer.email,
+
+      customerName:
+        `${customer.firstName || ""} ${
+          customer.lastName || ""
+        }`.trim(),
+
+      orderNumber:
+        order.orderNumber,
+
+      items:
+        order.items,
+
+      totalAmount:
+        order.totalAmount,
+    });
+  } catch (emailError) {
+    // Email failure should NOT fail the order
+    console.error(
+      "⚠️ Order created successfully, but confirmation email failed:",
+      emailError.message
+    );
+  }
+
+  // ==========================================================
+  // RETURN CREATED ORDER
+  // ==========================================================
+
+  return order;
 };
 
 // ============================================================
@@ -997,9 +891,9 @@ export const getOrder = async (
   customerId,
   orderId
 ) => {
-  // ----------------------------------------------------------
-  // Validate order ID
-  // ----------------------------------------------------------
+  // ==========================================================
+  // VALIDATE ORDER ID
+  // ==========================================================
 
   if (
     !mongoose.Types.ObjectId.isValid(
@@ -1012,9 +906,9 @@ export const getOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Find customer's order
-  // ----------------------------------------------------------
+  // ==========================================================
+  // FIND CUSTOMER ORDER
+  // ==========================================================
 
   const order =
     await findCustomerOrder(
@@ -1032,8 +926,6 @@ export const getOrder = async (
   return order;
 };
 
-
-
 // ============================================================
 // CANCEL CUSTOMER ORDER
 // ============================================================
@@ -1043,12 +935,14 @@ export const cancelOrder = async (
   orderId,
   reason = ""
 ) => {
-  // ----------------------------------------------------------
-  // Validate order ID
-  // ----------------------------------------------------------
+  // ==========================================================
+  // VALIDATE ORDER ID
+  // ==========================================================
 
   if (
-    !mongoose.Types.ObjectId.isValid(orderId)
+    !mongoose.Types.ObjectId.isValid(
+      orderId
+    )
   ) {
     throw new ApiError(
       400,
@@ -1056,9 +950,9 @@ export const cancelOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Find customer's order
-  // ----------------------------------------------------------
+  // ==========================================================
+  // FIND CUSTOMER ORDER
+  // ==========================================================
 
   const order =
     await findCustomerOrder(
@@ -1073,9 +967,9 @@ export const cancelOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Find customer
-  // ----------------------------------------------------------
+  // ==========================================================
+  // FIND CUSTOMER
+  // ==========================================================
 
   const customer =
     await findCustomerById(
@@ -1089,9 +983,9 @@ export const cancelOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Check current order status
-  // ----------------------------------------------------------
+  // ==========================================================
+  // CHECK CURRENT ORDER STATUS
+  // ==========================================================
 
   if (
     order.orderStatus ===
@@ -1123,10 +1017,10 @@ export const cancelOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Only allow cancellation for:
+  // ==========================================================
+  // ONLY ALLOW CANCELLATION FOR:
   // PLACED / CONFIRMED / PROCESSING
-  // ----------------------------------------------------------
+  // ==========================================================
 
   const cancellableStatuses = [
     "PLACED",
@@ -1145,42 +1039,83 @@ export const cancelOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Restore product stock
-  // ----------------------------------------------------------
+  // ==========================================================
+  // RESTORE STOCK
+  // ==========================================================
 
   for (const item of order.items) {
-    const result =
-      await Product.updateOne(
-        {
-          _id: item.product,
-        },
-        {
-          $inc: {
-            stock: item.quantity,
-          },
-        }
-      );
+    // --------------------------------------------------------
+    // RESTORE VARIANT STOCK
+    // --------------------------------------------------------
 
-    if (
-      result.modifiedCount !== 1
-    ) {
-      throw new ApiError(
-        400,
-        `Unable to restore stock for product "${item.name}"`
-      );
+    if (item.variant) {
+      const result =
+        await Variant.updateOne(
+          {
+            _id:
+              item.variant,
+
+            product:
+              item.product,
+          },
+          {
+            $inc: {
+              stock:
+                item.quantity,
+            },
+          }
+        );
+
+      if (
+        result.modifiedCount !== 1
+      ) {
+        throw new ApiError(
+          400,
+          `Unable to restore stock for variant of "${item.name}"`
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // RESTORE PRODUCT STOCK
+    // --------------------------------------------------------
+
+    else {
+      const result =
+        await Product.updateOne(
+          {
+            _id:
+              item.product,
+          },
+          {
+            $inc: {
+              stock:
+                item.quantity,
+            },
+          }
+        );
+
+      if (
+        result.modifiedCount !== 1
+      ) {
+        throw new ApiError(
+          400,
+          `Unable to restore stock for product "${item.name}"`
+        );
+      }
     }
   }
 
-  // ----------------------------------------------------------
-  // Update order
-  // ----------------------------------------------------------
+  // ==========================================================
+  // UPDATE ORDER
+  // ==========================================================
 
   const updatedOrder =
     await updateOrder(
       orderId,
       {
-        orderStatus: "CANCELLED",
+        orderStatus:
+          "CANCELLED",
 
         cancelledAt:
           new Date(),
@@ -1198,9 +1133,84 @@ export const cancelOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Send cancellation email
-  // ----------------------------------------------------------
+  // ==========================================================
+  // CUSTOMER CANCELLATION NOTIFICATION
+  // ==========================================================
+
+  try {
+    await createCustomerOrderNotification({
+      customerId:
+        customerId,
+
+      orderId:
+        updatedOrder._id,
+
+      title:
+        "Order Cancelled",
+
+      message:
+        `Your order ${updatedOrder.orderNumber} has been cancelled.`,
+
+      data: {
+        orderNumber:
+          updatedOrder.orderNumber,
+
+        status:
+          updatedOrder.orderStatus,
+
+        reason:
+          updatedOrder.cancellationReason,
+      },
+    });
+  } catch (notificationError) {
+    console.error(
+      "⚠️ Order cancelled successfully, but customer notification failed:",
+      notificationError.message
+    );
+  }
+
+  // ==========================================================
+  // ADMIN CANCELLATION NOTIFICATION
+  // ==========================================================
+
+  try {
+    await createAdminOrderNotification({
+      customerId:
+        customerId,
+
+      orderId:
+        updatedOrder._id,
+
+      title:
+        "Order Cancelled by Customer",
+
+      message:
+        `Customer cancelled order ${updatedOrder.orderNumber}.`,
+
+      data: {
+        orderNumber:
+          updatedOrder.orderNumber,
+
+        customerId:
+          customerId,
+
+        status:
+          updatedOrder.orderStatus,
+
+        reason:
+          updatedOrder.cancellationReason,
+      },
+    });
+  } catch (notificationError) {
+    console.error(
+      "⚠️ Order cancelled successfully, but admin notification failed:",
+      notificationError.message
+    );
+  }
+
+  // ==========================================================
+  // SEND CANCELLATION EMAIL
+  // ==========================================================
 
   try {
     await sendOrderCancellation({
@@ -1226,9 +1236,9 @@ export const cancelOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Return updated order
-  // ----------------------------------------------------------
+  // ==========================================================
+  // RETURN UPDATED ORDER
+  // ==========================================================
 
   return updatedOrder;
 };

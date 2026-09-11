@@ -3,12 +3,15 @@ import {
   sendOrderShipped,
   sendOrderDelivered,
   sendOrderCancellation,
+  createCustomerOrderNotification,
+  createAdminOrderNotification,
 } from "../../notifications/notification.service.js";
-
 
 import Order from "../../orders/order.model.js";
 import ApiError from "../../../utils/ApiError.js";
+
 import Product from "../../products/product.model.js";
+import Variant from "../../products/variant.model.js";
 
 import {
   findCustomerById,
@@ -38,18 +41,18 @@ export const getAllOrders = async ({
     (currentPage - 1) * perPage;
 
   // ==========================================================
-  // Build Filter
+  // BUILD FILTER
   // ==========================================================
 
   const filter = {};
 
-  // Filter by order status
   if (status) {
     filter.orderStatus =
-      status.toUpperCase();
+      String(status)
+        .trim()
+        .toUpperCase();
   }
 
-  // Search by order number
   if (search && search.trim()) {
     filter.orderNumber = {
       $regex: search.trim(),
@@ -58,35 +61,37 @@ export const getAllOrders = async ({
   }
 
   // ==========================================================
-  // Get Total Count
+  // GET TOTAL COUNT
   // ==========================================================
 
   const totalOrders =
     await Order.countDocuments(filter);
 
   // ==========================================================
-  // Get Orders
+  // GET ORDERS
   // ==========================================================
 
-  const orders = await Order.find(filter)
-    .populate(
-      "customer",
-      "name email mobile phone"
-    )
-    .sort({
-      createdAt: -1,
-    })
-    .skip(skip)
-    .limit(perPage)
-    .lean();
+  const orders =
+    await Order.find(filter)
+      .populate(
+        "customer",
+        "firstName lastName email mobile phone"
+      )
+      .sort({
+        createdAt: -1,
+      })
+      .skip(skip)
+      .limit(perPage)
+      .lean();
 
   // ==========================================================
-  // Pagination
+  // PAGINATION
   // ==========================================================
 
-  const totalPages = Math.ceil(
-    totalOrders / perPage
-  );
+  const totalPages =
+    Math.ceil(
+      totalOrders / perPage
+    );
 
   return {
     orders,
@@ -96,8 +101,10 @@ export const getAllOrders = async ({
       limit: perPage,
       totalOrders,
       totalPages,
+
       hasNextPage:
         currentPage < totalPages,
+
       hasPreviousPage:
         currentPage > 1,
     },
@@ -111,15 +118,29 @@ export const getAllOrders = async ({
 export const getAdminOrderById = async (
   orderId
 ) => {
+  if (
+    !orderId ||
+    !mongoose.Types.ObjectId.isValid(orderId)
+  ) {
+    throw new ApiError(
+      400,
+      "Invalid order ID"
+    );
+  }
+
   const order =
     await Order.findById(orderId)
       .populate(
         "customer",
-        "name email mobile phone"
+        "firstName lastName email mobile phone"
       )
       .populate(
         "items.product",
-        "name slug images price sku"
+        "name slug images price discountPrice sku"
+      )
+      .populate(
+        "items.variant",
+        "weight weightUnit price discountPrice stock sku isActive"
       );
 
   if (!order) {
@@ -141,10 +162,11 @@ export const updateOrderStatus = async (
   newStatus
 ) => {
   // ==========================================================
-  // Find Order
+  // FIND ORDER
   // ==========================================================
 
-  const order = await Order.findById(orderId);
+  const order =
+    await Order.findById(orderId);
 
   if (!order) {
     throw new ApiError(
@@ -154,15 +176,16 @@ export const updateOrderStatus = async (
   }
 
   // ==========================================================
-  // Normalize Status
+  // NORMALIZE STATUS
   // ==========================================================
 
-  const status = String(newStatus)
-    .trim()
-    .toUpperCase();
+  const status =
+    String(newStatus)
+      .trim()
+      .toUpperCase();
 
   // ==========================================================
-  // Allowed Statuses
+  // ALLOWED STATUSES
   // ==========================================================
 
   const allowedStatuses = [
@@ -174,7 +197,9 @@ export const updateOrderStatus = async (
     "CANCELLED",
   ];
 
-  if (!allowedStatuses.includes(status)) {
+  if (
+    !allowedStatuses.includes(status)
+  ) {
     throw new ApiError(
       400,
       "Invalid order status"
@@ -182,10 +207,12 @@ export const updateOrderStatus = async (
   }
 
   // ==========================================================
-  // Same Status Check
+  // SAME STATUS
   // ==========================================================
 
-  if (order.orderStatus === status) {
+  if (
+    order.orderStatus === status
+  ) {
     throw new ApiError(
       400,
       `Order is already ${status}`
@@ -193,7 +220,7 @@ export const updateOrderStatus = async (
   }
 
   // ==========================================================
-  // Valid Status Transitions
+  // VALID STATUS TRANSITIONS
   // ==========================================================
 
   const validTransitions = {
@@ -222,20 +249,24 @@ export const updateOrderStatus = async (
   };
 
   // ==========================================================
-  // Current Status
+  // CURRENT STATUS
   // ==========================================================
 
   const currentStatus =
     order.orderStatus;
 
   const possibleStatuses =
-    validTransitions[currentStatus] || [];
+    validTransitions[
+      currentStatus
+    ] || [];
 
   // ==========================================================
-  // Validate Transition
+  // VALIDATE TRANSITION
   // ==========================================================
 
-  if (!possibleStatuses.includes(status)) {
+  if (
+    !possibleStatuses.includes(status)
+  ) {
     throw new ApiError(
       400,
       `Cannot change order status from ${currentStatus} to ${status}`
@@ -246,53 +277,228 @@ export const updateOrderStatus = async (
   // ADMIN CANCELLATION
   // ==========================================================
 
-  if (status === "CANCELLED") {
+  if (
+    status === "CANCELLED"
+  ) {
     // --------------------------------------------------------
-    // Restore Product Stock
+    // RESTORE STOCK
     // --------------------------------------------------------
 
-    for (const item of order.items) {
-      const result =
-        await Product.updateOne(
-          {
-            _id: item.product,
-          },
-          {
-            $inc: {
-              stock: item.quantity,
+    for (
+      const item of order.items
+    ) {
+      // ------------------------------------------------------
+      // VARIANT STOCK
+      // ------------------------------------------------------
+
+      if (item.variant) {
+        const result =
+          await Variant.updateOne(
+            {
+              _id:
+                item.variant,
+
+              product:
+                item.product,
             },
-          }
-        );
+            {
+              $inc: {
+                stock:
+                  item.quantity,
+              },
+            }
+          );
 
-      if (result.modifiedCount !== 1) {
-        throw new ApiError(
-          400,
-          `Unable to restore stock for product "${item.name}"`
-        );
+        if (
+          result.modifiedCount !== 1
+        ) {
+          throw new ApiError(
+            400,
+            `Unable to restore stock for variant of "${item.name}"`
+          );
+        }
+      }
+
+      // ------------------------------------------------------
+      // PRODUCT STOCK
+      // ------------------------------------------------------
+
+      else {
+        const result =
+          await Product.updateOne(
+            {
+              _id:
+                item.product,
+            },
+            {
+              $inc: {
+                stock:
+                  item.quantity,
+              },
+            }
+          );
+
+        if (
+          result.modifiedCount !== 1
+        ) {
+          throw new ApiError(
+            400,
+            `Unable to restore stock for product "${item.name}"`
+          );
+        }
       }
     }
 
     // --------------------------------------------------------
-    // Cancellation Details
+    // CANCELLATION DETAILS
     // --------------------------------------------------------
 
-    order.cancelledAt = new Date();
+    order.cancelledAt =
+      new Date();
 
     order.cancellationReason =
       "Cancelled by admin";
   }
 
   // ==========================================================
-  // Update Order Status
+  // UPDATE ORDER STATUS
   // ==========================================================
 
-  order.orderStatus = status;
+  order.orderStatus =
+    status;
 
   // ==========================================================
-  // Save Order
+  // SAVE ORDER
   // ==========================================================
 
-  const updatedOrder = await order.save();
+  const updatedOrder =
+    await order.save();
+
+  // ==========================================================
+  // CREATE CUSTOMER STATUS NOTIFICATION
+  // ==========================================================
+
+  try {
+    const notificationMessages = {
+      CONFIRMED: {
+        title:
+          "Order Confirmed",
+
+        message:
+          `Your order ${updatedOrder.orderNumber} has been confirmed.`,
+      },
+
+      PROCESSING: {
+        title:
+          "Order Processing",
+
+        message:
+          `Your order ${updatedOrder.orderNumber} is now being processed.`,
+      },
+
+      SHIPPED: {
+        title:
+          "Order Shipped",
+
+        message:
+          `Your order ${updatedOrder.orderNumber} has been shipped.`,
+      },
+
+      DELIVERED: {
+        title:
+          "Order Delivered",
+
+        message:
+          `Your order ${updatedOrder.orderNumber} has been delivered.`,
+      },
+
+      CANCELLED: {
+        title:
+          "Order Cancelled",
+
+        message:
+          `Your order ${updatedOrder.orderNumber} has been cancelled.`,
+      },
+    };
+
+    const notification =
+      notificationMessages[
+        updatedOrder.orderStatus
+      ];
+
+    if (notification) {
+      await createCustomerOrderNotification({
+        customerId:
+          updatedOrder.customer,
+
+        orderId:
+          updatedOrder._id,
+
+        title:
+          notification.title,
+
+        message:
+          notification.message,
+
+        data: {
+          orderNumber:
+            updatedOrder.orderNumber,
+
+          status:
+            updatedOrder.orderStatus,
+        },
+      });
+    }
+  } catch (notificationError) {
+    console.error(
+      "⚠️ Order status updated successfully, but customer notification failed:",
+      notificationError.message
+    );
+  }
+
+  // ==========================================================
+  // CREATE ADMIN NOTIFICATION FOR ADMIN CANCELLATION
+  // ==========================================================
+
+  if (
+    updatedOrder.orderStatus ===
+    "CANCELLED"
+  ) {
+    try {
+      await createAdminOrderNotification({
+        customerId:
+          updatedOrder.customer,
+
+        orderId:
+          updatedOrder._id,
+
+        title:
+          "Order Cancelled by Admin",
+
+        message:
+          `Order ${updatedOrder.orderNumber} was cancelled by admin.`,
+
+        data: {
+          orderNumber:
+            updatedOrder.orderNumber,
+
+          customerId:
+            updatedOrder.customer,
+
+          status:
+            updatedOrder.orderStatus,
+
+          reason:
+            updatedOrder.cancellationReason,
+        },
+      });
+    } catch (notificationError) {
+      console.error(
+        "⚠️ Order cancelled successfully, but admin notification failed:",
+        notificationError.message
+      );
+    }
+  }
 
   // ==========================================================
   // SEND CUSTOMER STATUS EMAIL
@@ -311,7 +517,7 @@ export const updateOrderStatus = async (
         }`.trim();
 
       // ------------------------------------------------------
-      // SHIPPED EMAIL
+      // SHIPPED
       // ------------------------------------------------------
 
       if (
@@ -330,7 +536,7 @@ export const updateOrderStatus = async (
       }
 
       // ------------------------------------------------------
-      // DELIVERED EMAIL
+      // DELIVERED
       // ------------------------------------------------------
 
       else if (
@@ -349,7 +555,6 @@ export const updateOrderStatus = async (
       }
 
       // ------------------------------------------------------
-      // OTHER STATUS EMAIL
       // CONFIRMED / PROCESSING
       // ------------------------------------------------------
 
@@ -374,12 +579,30 @@ export const updateOrderStatus = async (
             updatedOrder.orderStatus,
         });
       }
+
+      // ------------------------------------------------------
+      // CANCELLED
+      // ------------------------------------------------------
+
+      else if (
+        updatedOrder.orderStatus ===
+        "CANCELLED"
+      ) {
+        await sendOrderCancellation({
+          customerEmail:
+            customer.email,
+
+          customerName,
+
+          orderNumber:
+            updatedOrder.orderNumber,
+
+          reason:
+            updatedOrder.cancellationReason,
+        });
+      }
     }
   } catch (emailError) {
-    // --------------------------------------------------------
-    // Email failure must NOT fail order status update
-    // --------------------------------------------------------
-
     console.error(
       "⚠️ Order status updated successfully, but email failed:",
       emailError.message
@@ -401,11 +624,12 @@ export const cancelAdminOrder = async (
   orderId,
   reason = "Cancelled by admin"
 ) => {
-  // ----------------------------------------------------------
-  // Find order
-  // ----------------------------------------------------------
+  // ==========================================================
+  // FIND ORDER
+  // ==========================================================
 
-  const order = await Order.findById(orderId);
+  const order =
+    await Order.findById(orderId);
 
   if (!order) {
     throw new ApiError(
@@ -414,34 +638,43 @@ export const cancelAdminOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Check current status
-  // ----------------------------------------------------------
+  // ==========================================================
+  // CHECK CURRENT STATUS
+  // ==========================================================
 
-  if (order.orderStatus === "CANCELLED") {
+  if (
+    order.orderStatus ===
+    "CANCELLED"
+  ) {
     throw new ApiError(
       400,
       "Order is already cancelled"
     );
   }
 
-  if (order.orderStatus === "DELIVERED") {
+  if (
+    order.orderStatus ===
+    "DELIVERED"
+  ) {
     throw new ApiError(
       400,
       "Delivered orders cannot be cancelled"
     );
   }
 
-  if (order.orderStatus === "SHIPPED") {
+  if (
+    order.orderStatus ===
+    "SHIPPED"
+  ) {
     throw new ApiError(
       400,
       "Shipped orders cannot be cancelled"
     );
   }
 
-  // ----------------------------------------------------------
-  // Allowed cancellation statuses
-  // ----------------------------------------------------------
+  // ==========================================================
+  // ALLOWED CANCELLATION STATUSES
+  // ==========================================================
 
   const cancellableStatuses = [
     "PLACED",
@@ -460,87 +693,210 @@ export const cancelAdminOrder = async (
     );
   }
 
-  // ----------------------------------------------------------
-  // Restore stock
-  // ----------------------------------------------------------
+  // ==========================================================
+  // RESTORE STOCK
+  // ==========================================================
 
-  for (const item of order.items) {
-    const result =
-      await Product.updateOne(
-        {
-          _id: item.product,
-        },
-        {
-          $inc: {
-            stock: item.quantity,
+  for (
+    const item of order.items
+  ) {
+    // --------------------------------------------------------
+    // RESTORE VARIANT STOCK
+    // --------------------------------------------------------
+
+    if (item.variant) {
+      const result =
+        await Variant.updateOne(
+          {
+            _id:
+              item.variant,
+
+            product:
+              item.product,
           },
-        }
-      );
+          {
+            $inc: {
+              stock:
+                item.quantity,
+            },
+          }
+        );
 
-    if (result.modifiedCount !== 1) {
-      throw new ApiError(
-        400,
-        `Unable to restore stock for product "${item.name}"`
-      );
+      if (
+        result.modifiedCount !== 1
+      ) {
+        throw new ApiError(
+          400,
+          `Unable to restore stock for variant of "${item.name}"`
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // RESTORE PRODUCT STOCK
+    // --------------------------------------------------------
+
+    else {
+      const result =
+        await Product.updateOne(
+          {
+            _id:
+              item.product,
+          },
+          {
+            $inc: {
+              stock:
+                item.quantity,
+            },
+          }
+        );
+
+      if (
+        result.modifiedCount !== 1
+      ) {
+        throw new ApiError(
+          400,
+          `Unable to restore stock for product "${item.name}"`
+        );
+      }
     }
   }
 
-  // ----------------------------------------------------------
-  // Update cancellation details
-  // ----------------------------------------------------------
+  // ==========================================================
+  // UPDATE CANCELLATION DETAILS
+  // ==========================================================
 
-  order.orderStatus = "CANCELLED";
+  order.orderStatus =
+    "CANCELLED";
 
-  order.cancelledAt = new Date();
+  order.cancelledAt =
+    new Date();
 
   order.cancellationReason =
     reason?.trim() ||
     "Cancelled by admin";
 
-  // ----------------------------------------------------------
-  // Save
-  // ----------------------------------------------------------
+  // ==========================================================
+  // SAVE UPDATED ORDER
+  // ==========================================================
 
-  // ----------------------------------------------------------
-// Send cancellation email
-// ----------------------------------------------------------
+  const updatedOrder =
+    await order.save();
 
-try {
-  const customer =
-    await findCustomerById(
-      order.customer
-    );
+  // ==========================================================
+  // CREATE CUSTOMER NOTIFICATION
+  // ==========================================================
 
-  if (customer?.email) {
-    const customerName =
-      `${customer.firstName || ""} ${
-        customer.lastName || ""
-      }`.trim();
+  try {
+    await createCustomerOrderNotification({
+      customerId:
+        updatedOrder.customer,
 
-    await sendOrderCancellation({
-      customerEmail:
-        customer.email,
+      orderId:
+        updatedOrder._id,
 
-      customerName,
+      title:
+        "Order Cancelled",
 
-      orderNumber:
-        order.orderNumber,
+      message:
+        `Your order ${updatedOrder.orderNumber} has been cancelled by the store.`,
 
-      reason:
-        order.cancellationReason,
+      data: {
+        orderNumber:
+          updatedOrder.orderNumber,
+
+        status:
+          updatedOrder.orderStatus,
+
+        reason:
+          updatedOrder.cancellationReason,
+      },
     });
+  } catch (notificationError) {
+    console.error(
+      "⚠️ Order cancelled successfully, but customer notification failed:",
+      notificationError.message
+    );
   }
-} catch (emailError) {
-  console.error(
-    "⚠️ Order cancelled successfully, but cancellation email failed:",
-    emailError.message
-  );
-}
 
-  // ----------------------------------------------------------
-  // Return updated order
-  // ----------------------------------------------------------
+  // ==========================================================
+  // CREATE ADMIN NOTIFICATION
+  // ==========================================================
 
-  return order;
+  try {
+    await createAdminOrderNotification({
+      customerId:
+        updatedOrder.customer,
+
+      orderId:
+        updatedOrder._id,
+
+      title:
+        "Order Cancelled by Admin",
+
+      message:
+        `Order ${updatedOrder.orderNumber} was cancelled by admin.`,
+
+      data: {
+        orderNumber:
+          updatedOrder.orderNumber,
+
+        customerId:
+          updatedOrder.customer,
+
+        status:
+          updatedOrder.orderStatus,
+
+        reason:
+          updatedOrder.cancellationReason,
+      },
+    });
+  } catch (notificationError) {
+    console.error(
+      "⚠️ Order cancelled successfully, but admin notification failed:",
+      notificationError.message
+    );
+  }
+
+  // ==========================================================
+  // SEND CANCELLATION EMAIL
+  // ==========================================================
+
+  try {
+    const customer =
+      await findCustomerById(
+        updatedOrder.customer
+      );
+
+    if (customer?.email) {
+      const customerName =
+        `${customer.firstName || ""} ${
+          customer.lastName || ""
+        }`.trim();
+
+      await sendOrderCancellation({
+        customerEmail:
+          customer.email,
+
+        customerName,
+
+        orderNumber:
+          updatedOrder.orderNumber,
+
+        reason:
+          updatedOrder.cancellationReason,
+      });
+    }
+  } catch (emailError) {
+    console.error(
+      "⚠️ Order cancelled successfully, but cancellation email failed:",
+      emailError.message
+    );
+  }
+
+  // ==========================================================
+  // RETURN UPDATED ORDER
+  // ==========================================================
+
+  return updatedOrder;
 };
-

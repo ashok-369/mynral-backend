@@ -28,6 +28,8 @@ import wishlistRoutes from "./modules/wishlist/wishlist.routes.js";
 
 import productModuleRoutes from "./modules/products/index.js";
 
+import notificationRoutes from "./modules/notifications/notification.routes.js";
+
 
 
 const app = express();
@@ -172,10 +174,10 @@ app.use(
 app.use("/api/admin", adminRoutes);
 
 
-app.use(
-  "/api/admin/orders",
-  adminOrderRoutes
-);
+// app.use(
+//   "/api/admin/orders",
+//   adminOrderRoutes
+// );
 
 
 app.use(
@@ -190,6 +192,11 @@ app.use(
 
 
 app.use("/api/wishlist", wishlistRoutes);
+
+app.use(
+  "/api/notifications",
+  notificationRoutes
+);
 /*
 |--------------------------------------------------------------------------
 | 404 Handler

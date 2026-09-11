@@ -1,4 +1,8 @@
 import {
+  createNotification,
+} from "./notification.repository.js";
+
+import {
   sendEmail,
 } from "./email.service.js";
 
@@ -9,6 +13,72 @@ import {
   orderShippedTemplate,
   orderDeliveredTemplate,
 } from "./template.service.js";
+
+
+// ============================================================
+// CREATE CUSTOMER ORDER NOTIFICATION
+// ============================================================
+
+export const createCustomerOrderNotification =
+  async ({
+    customerId,
+    orderId,
+    title,
+    message,
+    actionUrl = null,
+    data = null,
+  }) => {
+    return createNotification({
+      recipientType: "CUSTOMER",
+
+      customer: customerId,
+
+      type: "ORDER",
+
+      title,
+
+      message,
+
+      order: orderId,
+
+      actionUrl,
+
+      data,
+    });
+  };
+
+
+// ============================================================
+// CREATE ADMIN ORDER NOTIFICATION
+// ============================================================
+
+export const createAdminOrderNotification =
+  async ({
+    customerId = null,
+    orderId,
+    title,
+    message,
+    actionUrl = null,
+    data = null,
+  }) => {
+    return createNotification({
+      recipientType: "ADMIN",
+
+      customer: customerId,
+
+      type: "ORDER",
+
+      title,
+
+      message,
+
+      order: orderId,
+
+      actionUrl,
+
+      data,
+    });
+  };
 
 // ============================================================
 // ORDER CONFIRMATION

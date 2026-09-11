@@ -1,46 +1,41 @@
 import {
-findCustomerNotifications,
-countUnreadNotifications,
-findNotificationById,
-markNotificationAsRead,
-markAllNotificationsAsRead,
-deleteNotification,
-deleteAllReadNotifications,
-} from "./notification.repository.js";
+findAdminNotifications,
+countAdminUnreadNotifications,
+findAdminNotificationById,
+markAdminNotificationAsRead,
+markAllAdminNotificationsAsRead,
+deleteAdminNotification,
+deleteAllReadAdminNotifications,
+} from "../../notifications/notification.repository.js";
 
 // ============================================================
-// GET CUSTOMER NOTIFICATIONS
+// GET ADMIN NOTIFICATIONS
+// GET /api/admin/notifications
 // ============================================================
 
-export const getNotifications = async (
+export const getAdminNotifications = async (
 req,
 res,
 next
 ) => {
 try {
-const customerId = req.user.id;
-
-
 const page = Number(req.query.page) || 1;
-
 const limit = Number(req.query.limit) || 20;
+
 
 const unreadOnly =
   req.query.unreadOnly === "true";
 
-const result =
-  await findCustomerNotifications({
-    customerId,
-    page,
-    limit,
-    unreadOnly,
-  });
+const result = await findAdminNotifications({
+  page,
+  limit,
+  unreadOnly,
+});
 
 res.status(200).json({
   success: true,
   statusCode: 200,
-  message:
-    "Notifications fetched successfully",
+  message: "Admin notifications fetched successfully",
   data: result.notifications,
   pagination: {
     total: result.total,
@@ -57,25 +52,22 @@ next(error);
 };
 
 // ============================================================
-// GET UNREAD NOTIFICATION COUNT
+// GET ADMIN UNREAD COUNT
+// GET /api/admin/notifications/unread-count
 // ============================================================
 
-export const getUnreadNotificationCount =
+export const getAdminUnreadNotificationCount =
 async (req, res, next) => {
 try {
-const customerId = req.user.id;
+const count =
+await countAdminUnreadNotifications();
 
-
-  const count =
-    await countUnreadNotifications(
-      customerId
-    );
 
   res.status(200).json({
     success: true,
     statusCode: 200,
     message:
-      "Unread notification count fetched successfully",
+      "Admin unread notification count fetched successfully",
     data: {
       count,
     },
@@ -88,23 +80,21 @@ const customerId = req.user.id;
 };
 
 // ============================================================
-// MARK ONE NOTIFICATION AS READ
+// MARK ONE ADMIN NOTIFICATION AS READ
+// PATCH /api/admin/notifications/:id/read
 // ============================================================
 
-export const markAsRead = async (
+export const markAdminAsRead = async (
 req,
 res,
 next
 ) => {
 try {
-const customerId = req.user.id;
-
-
 const notification =
-  await findNotificationById({
-    notificationId: req.params.id,
-    customerId,
-  });
+await findAdminNotificationById(
+req.params.id
+);
+
 
 if (!notification) {
   return res.status(404).json({
@@ -115,16 +105,15 @@ if (!notification) {
 }
 
 const updatedNotification =
-  await markNotificationAsRead({
-    notificationId: req.params.id,
-    customerId,
-  });
+  await markAdminNotificationAsRead(
+    req.params.id
+  );
 
 res.status(200).json({
   success: true,
   statusCode: 200,
   message:
-    "Notification marked as read",
+    "Admin notification marked as read",
   data: updatedNotification,
 });
 
@@ -135,27 +124,25 @@ next(error);
 };
 
 // ============================================================
-// MARK ALL NOTIFICATIONS AS READ
+// MARK ALL ADMIN NOTIFICATIONS AS READ
+// PATCH /api/admin/notifications/read-all
 // ============================================================
 
-export const markAllAsRead = async (
+export const markAllAdminAsRead = async (
 req,
 res,
 next
 ) => {
 try {
-const customerId = req.user.id;
-
 const result =
-  await markAllNotificationsAsRead(
-    customerId
-  );
+await markAllAdminNotificationsAsRead();
+
 
 res.status(200).json({
   success: true,
   statusCode: 200,
   message:
-    "All notifications marked as read",
+    "All admin notifications marked as read",
   data: {
     modifiedCount:
       result.modifiedCount,
@@ -169,20 +156,18 @@ next(error);
 };
 
 // ============================================================
-// DELETE ONE NOTIFICATION
+// DELETE ONE ADMIN NOTIFICATION
+// DELETE /api/admin/notifications/:id
 // ============================================================
 
-export const deleteCustomerNotification =
+export const deleteAdminNotificationById =
 async (req, res, next) => {
 try {
-const customerId = req.user.id;
+const notification =
+await deleteAdminNotification(
+req.params.id
+);
 
-
-  const notification =
-    await deleteNotification({
-      notificationId: req.params.id,
-      customerId,
-    });
 
   if (!notification) {
     return res.status(404).json({
@@ -196,7 +181,7 @@ const customerId = req.user.id;
     success: true,
     statusCode: 200,
     message:
-      "Notification deleted successfully",
+      "Admin notification deleted successfully",
     data: notification,
   });
 } catch (error) {
@@ -207,25 +192,22 @@ const customerId = req.user.id;
 };
 
 // ============================================================
-// DELETE ALL READ NOTIFICATIONS
+// DELETE ALL READ ADMIN NOTIFICATIONS
+// DELETE /api/admin/notifications/read
 // ============================================================
 
-export const deleteReadNotifications =
+export const deleteReadAdminNotifications =
 async (req, res, next) => {
 try {
-const customerId = req.user.id;
+const result =
+await deleteAllReadAdminNotifications();
 
-
-  const result =
-    await deleteAllReadNotifications(
-      customerId
-    );
 
   res.status(200).json({
     success: true,
     statusCode: 200,
     message:
-      "Read notifications deleted successfully",
+      "Read admin notifications deleted successfully",
     data: {
       deletedCount:
         result.deletedCount,

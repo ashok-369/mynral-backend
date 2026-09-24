@@ -12,8 +12,14 @@ import {
   updateVariantStock as updateVariantStockService,
 } from "./adminProduct.service.js";
 
+import {
+  uploadMultipleToCloudinary,
+  deleteMultipleFromCloudinary,
+} from "../../../utils/cloudinary.util.js";
+
 // ============================================================
 // CREATE PRODUCT
+// POST /api/admin/products
 // ============================================================
 
 export const createProduct = async (
@@ -21,13 +27,50 @@ export const createProduct = async (
   res,
   next
 ) => {
+  let uploadedImages = [];
+
   try {
+    // --------------------------------------------------------
+    // UPLOAD IMAGES TO CLOUDINARY
+    // --------------------------------------------------------
+
+    if (
+      req.files &&
+      req.files.length > 0
+    ) {
+      uploadedImages =
+        await uploadMultipleToCloudinary(
+          req.files,
+          {
+            folder:
+              "mynral/products",
+          }
+        );
+    }
+
+    // --------------------------------------------------------
+    // PRODUCT DATA
+    // --------------------------------------------------------
+
+    const productData = {
+      ...req.body,
+      images: uploadedImages,
+    };
+
+    // --------------------------------------------------------
+    // CREATE PRODUCT
+    // --------------------------------------------------------
+
     const result =
       await createProductService(
-        req.body
+        productData
       );
 
-    res.status(201).json({
+    // --------------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------------
+
+    return res.status(201).json({
       success: true,
       statusCode: 201,
       message:
@@ -35,12 +78,46 @@ export const createProduct = async (
       data: result,
     });
   } catch (error) {
+    // --------------------------------------------------------
+    // CLEANUP CLOUDINARY IMAGES
+    // IF DATABASE CREATION FAILS
+    // --------------------------------------------------------
+
+    if (
+      uploadedImages &&
+      uploadedImages.length > 0
+    ) {
+      try {
+        const publicIds =
+          uploadedImages
+            .map(
+              (image) =>
+                image.publicId
+            )
+            .filter(Boolean);
+
+        if (
+          publicIds.length > 0
+        ) {
+          await deleteMultipleFromCloudinary(
+            publicIds
+          );
+        }
+      } catch (cleanupError) {
+        console.error(
+          "Cloudinary cleanup failed after product creation error:",
+          cleanupError
+        );
+      }
+    }
+
     next(error);
   }
 };
 
 // ============================================================
 // GET ALL PRODUCTS
+// GET /api/admin/products
 // ============================================================
 
 export const getProducts = async (
@@ -54,7 +131,7 @@ export const getProducts = async (
         req.query
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       statusCode: 200,
       message:
@@ -68,6 +145,7 @@ export const getProducts = async (
 
 // ============================================================
 // GET PRODUCT BY ID
+// GET /api/admin/products/:productId
 // ============================================================
 
 export const getProduct = async (
@@ -81,7 +159,7 @@ export const getProduct = async (
         req.params.productId
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       statusCode: 200,
       message:
@@ -95,6 +173,29 @@ export const getProduct = async (
 
 // ============================================================
 // UPDATE PRODUCT
+// PATCH /api/admin/products/:productId
+// ============================================================
+//
+// Supports:
+//
+// - Product information update
+// - Price update
+// - Add new images
+// - Remove existing images
+//
+// Form-data:
+//
+// images = new image files
+//
+// removeImagePublicIds = JSON array
+//
+// Example:
+//
+// [
+//   "mynral/products/old-image-1",
+//   "mynral/products/old-image-2"
+// ]
+//
 // ============================================================
 
 export const updateProduct = async (
@@ -102,27 +203,220 @@ export const updateProduct = async (
   res,
   next
 ) => {
+  let uploadedImages = [];
+
   try {
-    const product =
+    // ========================================================
+    // UPLOAD NEW IMAGES
+    // ========================================================
+
+    if (
+      req.files &&
+      req.files.length > 0
+    ) {
+      uploadedImages =
+        await uploadMultipleToCloudinary(
+          req.files,
+          {
+            folder:
+              "mynral/products",
+          }
+        );
+    }
+
+    // ========================================================
+    // PARSE REMOVE IMAGE PUBLIC IDS
+    // ========================================================
+
+    let removeImagePublicIds = [];
+
+    if (
+      req.body.removeImagePublicIds !==
+      undefined
+    ) {
+      // ------------------------------------------------------
+      // CASE 1:
+      // Already an array
+      // ------------------------------------------------------
+
+      if (
+        Array.isArray(
+          req.body
+            .removeImagePublicIds
+        )
+      ) {
+        removeImagePublicIds =
+          req.body.removeImagePublicIds;
+      }
+
+      // ------------------------------------------------------
+      // CASE 2:
+      // JSON string from multipart/form-data
+      // ------------------------------------------------------
+
+      else if (
+        typeof req.body
+          .removeImagePublicIds ===
+        "string"
+      ) {
+        try {
+          const parsed =
+            JSON.parse(
+              req.body
+                .removeImagePublicIds
+            );
+
+          if (
+            !Array.isArray(parsed)
+          ) {
+            throw new Error(
+              "removeImagePublicIds must be an array"
+            );
+          }
+
+          removeImagePublicIds =
+            parsed;
+        } catch (parseError) {
+          throw new Error(
+            "removeImagePublicIds must be a valid JSON array"
+          );
+        }
+      }
+    }
+
+    // ========================================================
+    // CLEAN PUBLIC IDS
+    // ========================================================
+
+    removeImagePublicIds =
+      removeImagePublicIds
+        .filter(
+          (publicId) =>
+            typeof publicId ===
+              "string" &&
+            publicId.trim()
+        )
+        .map(
+          (publicId) =>
+            publicId.trim()
+        );
+
+    // ========================================================
+    // PREPARE PRODUCT DATA
+    // ========================================================
+
+    const productData = {
+      ...req.body,
+
+      // Newly uploaded Cloudinary images
+      newImages: uploadedImages,
+
+      // Existing images to remove
+      removeImagePublicIds,
+    };
+
+    // --------------------------------------------------------
+    // NEVER ALLOW RAW `images` FROM FORM DATA
+    // --------------------------------------------------------
+
+    delete productData.images;
+
+    // ========================================================
+    // UPDATE PRODUCT
+    // ========================================================
+
+    const updatedProduct =
       await updateProductService(
         req.params.productId,
-        req.body
+        productData
       );
 
-    res.status(200).json({
+    // ========================================================
+    // DELETE REMOVED IMAGES FROM CLOUDINARY
+    // ========================================================
+    //
+    // Important:
+    //
+    // MongoDB has already been updated successfully.
+    //
+    // If Cloudinary deletion fails, we should NOT
+    // roll back the MongoDB update.
+    //
+    // ========================================================
+
+    if (
+      removeImagePublicIds.length >
+      0
+    ) {
+      try {
+        await deleteMultipleFromCloudinary(
+          removeImagePublicIds
+        );
+      } catch (cloudinaryError) {
+        console.error(
+          "Cloudinary image deletion failed during product update:",
+          cloudinaryError
+        );
+      }
+    }
+
+    // ========================================================
+    // RESPONSE
+    // ========================================================
+
+    return res.status(200).json({
       success: true,
       statusCode: 200,
       message:
         "Product updated successfully",
-      data: product,
+      data: updatedProduct,
     });
   } catch (error) {
+    // ========================================================
+    // CLEANUP NEWLY UPLOADED IMAGES
+    // ========================================================
+    //
+    // If MongoDB update fails after Cloudinary upload,
+    // delete the newly uploaded images so we don't create
+    // orphaned Cloudinary files.
+    //
+    // ========================================================
+
+    if (
+      uploadedImages &&
+      uploadedImages.length > 0
+    ) {
+      try {
+        const publicIds =
+          uploadedImages
+            .map(
+              (image) =>
+                image.publicId
+            )
+            .filter(Boolean);
+
+        if (
+          publicIds.length > 0
+        ) {
+          await deleteMultipleFromCloudinary(
+            publicIds
+          );
+        }
+      } catch (cleanupError) {
+        console.error(
+          "Cloudinary cleanup failed after product update error:",
+          cleanupError
+        );
+      }
+    }
+
     next(error);
   }
 };
 
 // ============================================================
 // DELETE PRODUCT
+// DELETE /api/admin/products/:productId
 // ============================================================
 
 export const deleteProduct = async (
@@ -131,17 +425,61 @@ export const deleteProduct = async (
   next
 ) => {
   try {
+    // ========================================================
+    // DELETE PRODUCT FROM DATABASE
+    // ========================================================
+
     const result =
       await deleteProductService(
         req.params.productId
       );
 
-    res.status(200).json({
+    // ========================================================
+    // DELETE PRODUCT IMAGES FROM CLOUDINARY
+    // ========================================================
+
+    if (
+      result.imagePublicIds &&
+      result.imagePublicIds.length >
+        0
+    ) {
+      try {
+        await deleteMultipleFromCloudinary(
+          result.imagePublicIds
+        );
+      } catch (cloudinaryError) {
+        // ----------------------------------------------------
+        // Do not fail the product deletion because Cloudinary
+        // cleanup failed.
+        // ----------------------------------------------------
+
+        console.error(
+          "Cloudinary image deletion failed after product deletion:",
+          cloudinaryError
+        );
+      }
+    }
+
+    // ========================================================
+    // REMOVE INTERNAL CLOUDINARY IDS
+    // FROM API RESPONSE
+    // ========================================================
+
+    const {
+      imagePublicIds,
+      ...responseData
+    } = result;
+
+    // ========================================================
+    // RESPONSE
+    // ========================================================
+
+    return res.status(200).json({
       success: true,
       statusCode: 200,
       message:
         "Product deleted successfully",
-      data: result,
+      data: responseData,
     });
   } catch (error) {
     next(error);
@@ -150,6 +488,7 @@ export const deleteProduct = async (
 
 // ============================================================
 // ACTIVATE PRODUCT
+// PATCH /api/admin/products/:productId/activate
 // ============================================================
 
 export const activateProduct = async (
@@ -163,7 +502,7 @@ export const activateProduct = async (
         req.params.productId
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       statusCode: 200,
       message:
@@ -177,33 +516,36 @@ export const activateProduct = async (
 
 // ============================================================
 // DEACTIVATE PRODUCT
+// PATCH /api/admin/products/:productId/deactivate
 // ============================================================
 
-export const deactivateProduct = async (
-  req,
-  res,
-  next
-) => {
-  try {
-    const product =
-      await deactivateProductService(
-        req.params.productId
-      );
+export const deactivateProduct =
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const product =
+        await deactivateProductService(
+          req.params.productId
+        );
 
-    res.status(200).json({
-      success: true,
-      statusCode: 200,
-      message:
-        "Product deactivated successfully",
-      data: product,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+      return res.status(200).json({
+        success: true,
+        statusCode: 200,
+        message:
+          "Product deactivated successfully",
+        data: product,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 
 // ============================================================
 // CREATE VARIANT
+// POST /api/admin/products/:productId/variants
 // ============================================================
 
 export const createVariant = async (
@@ -218,11 +560,11 @@ export const createVariant = async (
         req.body
       );
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       statusCode: 201,
       message:
-        "Product variant created successfully",
+        "Variant created successfully",
       data: variant,
     });
   } catch (error) {
@@ -232,6 +574,7 @@ export const createVariant = async (
 
 // ============================================================
 // UPDATE VARIANT
+// PATCH /api/admin/products/variants/:variantId
 // ============================================================
 
 export const updateVariant = async (
@@ -246,11 +589,11 @@ export const updateVariant = async (
         req.body
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       statusCode: 200,
       message:
-        "Product variant updated successfully",
+        "Variant updated successfully",
       data: variant,
     });
   } catch (error) {
@@ -260,6 +603,7 @@ export const updateVariant = async (
 
 // ============================================================
 // DELETE VARIANT
+// DELETE /api/admin/products/variants/:variantId
 // ============================================================
 
 export const deleteVariant = async (
@@ -273,11 +617,11 @@ export const deleteVariant = async (
         req.params.variantId
       );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       statusCode: 200,
       message:
-        "Product variant deleted successfully",
+        "Variant deleted successfully",
       data: result,
     });
   } catch (error) {
@@ -286,29 +630,34 @@ export const deleteVariant = async (
 };
 
 // ============================================================
-// UPDATE STOCK
+// UPDATE VARIANT STOCK
+// PATCH /api/admin/products/variants/:variantId/stock
 // ============================================================
 
-export const updateVariantStock = async (
-  req,
-  res,
-  next
-) => {
-  try {
-    const variant =
-      await updateVariantStockService(
-        req.params.variantId,
-        req.body.stock
-      );
+export const updateVariantStock =
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const { stock } =
+        req.body;
 
-    res.status(200).json({
-      success: true,
-      statusCode: 200,
-      message:
-        "Variant stock updated successfully",
-      data: variant,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+      const variant =
+        await updateVariantStockService(
+          req.params.variantId,
+          stock
+        );
+
+      return res.status(200).json({
+        success: true,
+        statusCode: 200,
+        message:
+          "Variant stock updated successfully",
+        data: variant,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };

@@ -107,6 +107,8 @@ const authMiddleware = (
       type: decoded.type,
     };
 
+    req.user = req.customer;
+
 
     // ========================================================
     // Continue

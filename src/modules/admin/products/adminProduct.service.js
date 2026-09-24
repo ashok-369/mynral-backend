@@ -19,7 +19,9 @@ const calculateVariantPrice = (
   }
 
   return Number(
-    (Number(pricePerGram) * weightInGrams).toFixed(2)
+    (
+      Number(pricePerGram) * weightInGrams
+    ).toFixed(2)
   );
 };
 
@@ -40,34 +42,54 @@ export const createProduct = async (data) => {
     variants = [],
   } = data;
 
+  // ----------------------------------------------------------
+  // VALIDATION
+  // ----------------------------------------------------------
+
   if (!name) {
-    throw new Error("Product name is required");
+    throw new Error(
+      "Product name is required"
+    );
   }
 
   if (!category) {
-    throw new Error("Category is required");
+    throw new Error(
+      "Category is required"
+    );
   }
 
   if (
     pricePerGram === undefined ||
     pricePerGram === null
   ) {
-    throw new Error("pricePerGram is required");
+    throw new Error(
+      "pricePerGram is required"
+    );
   }
 
   if (Number(pricePerGram) < 0) {
-    throw new Error("pricePerGram cannot be negative");
+    throw new Error(
+      "pricePerGram cannot be negative"
+    );
   }
+
+  // ----------------------------------------------------------
+  // GENERATE SLUG
+  // ----------------------------------------------------------
 
   const slug = slugify(name, {
     lower: true,
     strict: true,
   });
 
-  // Check duplicate slug
-  const existingProduct = await Product.findOne({
-    slug,
-  });
+  // ----------------------------------------------------------
+  // CHECK DUPLICATE PRODUCT
+  // ----------------------------------------------------------
+
+  const existingProduct =
+    await Product.findOne({
+      slug,
+    });
 
   if (existingProduct) {
     throw new Error(
@@ -75,7 +97,10 @@ export const createProduct = async (data) => {
     );
   }
 
-  // Create product
+  // ----------------------------------------------------------
+  // CREATE PRODUCT
+  // ----------------------------------------------------------
+
   const product = await Product.create({
     name,
     slug,
@@ -94,7 +119,10 @@ export const createProduct = async (data) => {
 
   const createdVariants = [];
 
-  if (Array.isArray(variants) && variants.length > 0) {
+  if (
+    Array.isArray(variants) &&
+    variants.length > 0
+  ) {
     for (const variantData of variants) {
       const {
         weight,
@@ -105,17 +133,36 @@ export const createProduct = async (data) => {
         isActive: variantIsActive = true,
       } = variantData;
 
+      // ------------------------------------------------------
+      // VALIDATE WEIGHT
+      // ------------------------------------------------------
+
       if (!weight) {
         throw new Error(
           "Variant weight is required"
         );
       }
 
-      const price = calculateVariantPrice(
-        pricePerGram,
-        weight,
-        weightUnit
-      );
+      if (Number(weight) <= 0) {
+        throw new Error(
+          "Variant weight must be greater than 0"
+        );
+      }
+
+      // ------------------------------------------------------
+      // CALCULATE PRICE
+      // ------------------------------------------------------
+
+      const price =
+        calculateVariantPrice(
+          pricePerGram,
+          weight,
+          weightUnit
+        );
+
+      // ------------------------------------------------------
+      // VALIDATE DISCOUNT PRICE
+      // ------------------------------------------------------
 
       if (
         discountPrice !== null &&
@@ -126,20 +173,31 @@ export const createProduct = async (data) => {
         );
       }
 
-      const variant = await Variant.create({
-        product: product._id,
-        weight,
-        weightUnit,
-        price,
-        discountPrice,
-        stock,
-        sku: variantSku,
-        isActive: variantIsActive,
-      });
+      // ------------------------------------------------------
+      // CREATE VARIANT
+      // ------------------------------------------------------
 
-      createdVariants.push(variant);
+      const variant =
+        await Variant.create({
+          product: product._id,
+          weight,
+          weightUnit,
+          price,
+          discountPrice,
+          stock,
+          sku: variantSku,
+          isActive: variantIsActive,
+        });
+
+      createdVariants.push(
+        variant
+      );
     }
   }
+
+  // ----------------------------------------------------------
+  // RETURN
+  // ----------------------------------------------------------
 
   return {
     product,
@@ -151,12 +209,22 @@ export const createProduct = async (data) => {
 // GET ALL PRODUCTS FOR ADMIN
 // ============================================================
 
-export const getAllProducts = async (query = {}) => {
+export const getAllProducts = async (
+  query = {}
+) => {
   const filter = {};
+
+  // ----------------------------------------------------------
+  // CATEGORY FILTER
+  // ----------------------------------------------------------
 
   if (query.category) {
     filter.category = query.category;
   }
+
+  // ----------------------------------------------------------
+  // ACTIVE FILTER
+  // ----------------------------------------------------------
 
   if (query.isActive !== undefined) {
     filter.isActive =
@@ -164,11 +232,19 @@ export const getAllProducts = async (query = {}) => {
       query.isActive === true;
   }
 
+  // ----------------------------------------------------------
+  // FEATURED FILTER
+  // ----------------------------------------------------------
+
   if (query.isFeatured !== undefined) {
     filter.isFeatured =
       query.isFeatured === "true" ||
       query.isFeatured === true;
   }
+
+  // ----------------------------------------------------------
+  // SEARCH
+  // ----------------------------------------------------------
 
   if (query.search) {
     filter.$or = [
@@ -187,17 +263,25 @@ export const getAllProducts = async (query = {}) => {
     ];
   }
 
-  const products = await Product.find(filter)
-    .populate(
-      "category",
-      "name slug image"
-    )
-    .sort({
-      createdAt: -1,
-    })
-    .lean();
+  // ----------------------------------------------------------
+  // GET PRODUCTS
+  // ----------------------------------------------------------
 
-  // Attach variants
+  const products =
+    await Product.find(filter)
+      .populate(
+        "category",
+        "name slug image"
+      )
+      .sort({
+        createdAt: -1,
+      })
+      .lean();
+
+  // ----------------------------------------------------------
+  // ATTACH VARIANTS
+  // ----------------------------------------------------------
+
   for (const product of products) {
     product.variants =
       await Variant.find({
@@ -219,26 +303,42 @@ export const getAllProducts = async (query = {}) => {
 export const getProductById = async (
   productId
 ) => {
-  const product = await Product.findById(
-    productId
-  )
-    .populate(
-      "category",
-      "name slug image"
+  // ----------------------------------------------------------
+  // GET PRODUCT
+  // ----------------------------------------------------------
+
+  const product =
+    await Product.findById(
+      productId
     )
-    .lean();
+      .populate(
+        "category",
+        "name slug image"
+      )
+      .lean();
 
   if (!product) {
-    throw new Error("Product not found");
+    throw new Error(
+      "Product not found"
+    );
   }
 
-  const variants = await Variant.find({
-    product: productId,
-  })
-    .sort({
-      weight: 1,
+  // ----------------------------------------------------------
+  // GET VARIANTS
+  // ----------------------------------------------------------
+
+  const variants =
+    await Variant.find({
+      product: productId,
     })
-    .lean();
+      .sort({
+        weight: 1,
+      })
+      .lean();
+
+  // ----------------------------------------------------------
+  // RETURN
+  // ----------------------------------------------------------
 
   return {
     ...product,
@@ -249,81 +349,278 @@ export const getProductById = async (
 // ============================================================
 // UPDATE PRODUCT
 // ============================================================
+//
+// Supports:
+//
+// 1. Basic product updates
+// 2. Price per gram update
+// 3. Adding new Cloudinary images
+// 4. Removing existing Cloudinary images
+//
+// Expected data from controller:
+//
+// {
+//   name,
+//   description,
+//   category,
+//   pricePerGram,
+//   sku,
+//   isActive,
+//   isFeatured,
+//   newImages: [],
+//   removeImagePublicIds: []
+// }
+//
+// ============================================================
 
 export const updateProduct = async (
   productId,
   data
 ) => {
-  const product = await Product.findById(
-    productId
-  );
+  // ----------------------------------------------------------
+  // FIND PRODUCT
+  // ----------------------------------------------------------
+
+  const product =
+    await Product.findById(
+      productId
+    );
 
   if (!product) {
-    throw new Error("Product not found");
+    throw new Error(
+      "Product not found"
+    );
   }
 
   const updateData = {};
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // BASIC FIELDS
+  // ==========================================================
+
+  // ----------------------------------------------------------
+  // NAME
   // ----------------------------------------------------------
 
   if (data.name !== undefined) {
     updateData.name = data.name;
 
-    updateData.slug = slugify(data.name, {
-      lower: true,
-      strict: true,
-    });
+    updateData.slug = slugify(
+      data.name,
+      {
+        lower: true,
+        strict: true,
+      }
+    );
+
+    // Check duplicate slug
+    const existingProduct =
+      await Product.findOne({
+        slug: updateData.slug,
+        _id: {
+          $ne: productId,
+        },
+      });
+
+    if (existingProduct) {
+      throw new Error(
+        "A product with this name already exists"
+      );
+    }
   }
 
-  if (data.description !== undefined) {
+  // ----------------------------------------------------------
+  // DESCRIPTION
+  // ----------------------------------------------------------
+
+  if (
+    data.description !== undefined
+  ) {
     updateData.description =
       data.description;
   }
 
-  if (data.category !== undefined) {
-    updateData.category = data.category;
+  // ----------------------------------------------------------
+  // CATEGORY
+  // ----------------------------------------------------------
+
+  if (
+    data.category !== undefined
+  ) {
+    updateData.category =
+      data.category;
   }
 
-  if (data.images !== undefined) {
-    updateData.images = data.images;
-  }
+  // ----------------------------------------------------------
+  // SKU
+  // ----------------------------------------------------------
 
   if (data.sku !== undefined) {
     updateData.sku = data.sku;
   }
 
-  if (data.isActive !== undefined) {
-    updateData.isActive = data.isActive;
+  // ----------------------------------------------------------
+  // ACTIVE STATUS
+  // ----------------------------------------------------------
+
+  if (
+    data.isActive !== undefined
+  ) {
+    updateData.isActive =
+      data.isActive;
   }
 
-  if (data.isFeatured !== undefined) {
+  // ----------------------------------------------------------
+  // FEATURED STATUS
+  // ----------------------------------------------------------
+
+  if (
+    data.isFeatured !== undefined
+  ) {
     updateData.isFeatured =
       data.isFeatured;
   }
 
+  // ==========================================================
+  // PRODUCT IMAGES
+  // ==========================================================
+  //
+  // Existing images:
+  //
+  // [
+  //   {
+  //     url: "...",
+  //     publicId: "..."
+  //   }
+  // ]
+  //
+  // New images come from Cloudinary:
+  //
+  // data.newImages
+  //
+  // Images to remove:
+  //
+  // data.removeImagePublicIds
+  //
+  // ==========================================================
+
+  const currentImages =
+    Array.isArray(product.images)
+      ? product.images.map(
+          (image) => {
+            // Backward compatibility
+            // in case old documents
+            // contain plain image URLs.
+            if (
+              typeof image ===
+              "string"
+            ) {
+              return {
+                url: image,
+                publicId: null,
+              };
+            }
+
+            return image.toObject
+              ? image.toObject()
+              : image;
+          }
+        )
+      : [];
+
   // ----------------------------------------------------------
+  // PUBLIC IDS TO REMOVE
+  // ----------------------------------------------------------
+
+  const removeImagePublicIds =
+    Array.isArray(
+      data.removeImagePublicIds
+    )
+      ? data.removeImagePublicIds.filter(
+          Boolean
+        )
+      : [];
+
+  // ----------------------------------------------------------
+  // NEW CLOUDINARY IMAGES
+  // ----------------------------------------------------------
+
+  const newImages =
+    Array.isArray(data.newImages)
+      ? data.newImages
+      : [];
+
+  // ----------------------------------------------------------
+  // REMOVE EXISTING IMAGES
+  // ----------------------------------------------------------
+
+  const remainingImages =
+    currentImages.filter(
+      (image) => {
+        if (!image.publicId) {
+          return true;
+        }
+
+        return !removeImagePublicIds.includes(
+          image.publicId
+        );
+      }
+    );
+
+  // ----------------------------------------------------------
+  // ADD NEW IMAGES
+  // ----------------------------------------------------------
+
+  if (
+    removeImagePublicIds.length >
+      0 ||
+    newImages.length > 0
+  ) {
+    updateData.images = [
+      ...remainingImages,
+      ...newImages,
+    ];
+  }
+
+  // ==========================================================
   // PRICE PER GRAM
-  // ----------------------------------------------------------
+  // ==========================================================
 
   const priceChanged =
-    data.pricePerGram !== undefined;
+    data.pricePerGram !==
+    undefined;
 
   if (priceChanged) {
-    if (Number(data.pricePerGram) < 0) {
+    const newPricePerGram =
+      Number(
+        data.pricePerGram
+      );
+
+    if (
+      Number.isNaN(
+        newPricePerGram
+      )
+    ) {
+      throw new Error(
+        "pricePerGram must be a valid number"
+      );
+    }
+
+    if (
+      newPricePerGram < 0
+    ) {
       throw new Error(
         "pricePerGram cannot be negative"
       );
     }
 
     updateData.pricePerGram =
-      Number(data.pricePerGram);
+      newPricePerGram;
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // UPDATE PRODUCT
-  // ----------------------------------------------------------
+  // ==========================================================
 
   const updatedProduct =
     await Product.findByIdAndUpdate(
@@ -340,14 +637,32 @@ export const updateProduct = async (
       )
       .lean();
 
-  // ----------------------------------------------------------
-  // RECALCULATE ALL VARIANT PRICES
-  // ----------------------------------------------------------
+  if (!updatedProduct) {
+    throw new Error(
+      "Product not found"
+    );
+  }
+
+  // ==========================================================
+  // RECALCULATE VARIANT PRICES
+  // ==========================================================
+  //
+  // Existing behavior retained:
+  //
+  // When pricePerGram changes,
+  // variant prices are recalculated.
+  //
+  // Discount price is reset to null
+  // if it becomes greater than the
+  // newly calculated variant price.
+  //
+  // ==========================================================
 
   if (priceChanged) {
-    const variants = await Variant.find({
-      product: productId,
-    });
+    const variants =
+      await Variant.find({
+        product: productId,
+      });
 
     for (const variant of variants) {
       const newPrice =
@@ -360,13 +675,21 @@ export const updateProduct = async (
       let discountPrice =
         variant.discountPrice;
 
-      // Prevent discount price > new price
+      // ------------------------------------------------------
+      // PREVENT INVALID DISCOUNT PRICE
+      // ------------------------------------------------------
+
       if (
         discountPrice !== null &&
-        Number(discountPrice) > newPrice
+        Number(discountPrice) >
+          newPrice
       ) {
         discountPrice = null;
       }
+
+      // ------------------------------------------------------
+      // UPDATE VARIANT PRICE
+      // ------------------------------------------------------
 
       await Variant.findByIdAndUpdate(
         variant._id,
@@ -381,13 +704,22 @@ export const updateProduct = async (
     }
   }
 
-  const variants = await Variant.find({
-    product: productId,
-  })
-    .sort({
-      weight: 1,
+  // ==========================================================
+  // GET UPDATED VARIANTS
+  // ==========================================================
+
+  const variants =
+    await Variant.find({
+      product: productId,
     })
-    .lean();
+      .sort({
+        weight: 1,
+      })
+      .lean();
+
+  // ==========================================================
+  // RETURN
+  // ==========================================================
 
   return {
     ...updatedProduct,
@@ -398,31 +730,74 @@ export const updateProduct = async (
 // ============================================================
 // DELETE PRODUCT
 // ============================================================
+//
+// IMPORTANT:
+// This function does NOT directly delete from Cloudinary.
+//
+// It returns the Cloudinary public IDs to the controller.
+//
+// The controller will then call:
+//
+// deleteMultipleFromCloudinary()
+//
+// ============================================================
 
 export const deleteProduct = async (
   productId
 ) => {
-  const product = await Product.findById(
-    productId
-  );
+  // ----------------------------------------------------------
+  // FIND PRODUCT
+  // ----------------------------------------------------------
+
+  const product =
+    await Product.findById(
+      productId
+    );
 
   if (!product) {
-    throw new Error("Product not found");
+    throw new Error(
+      "Product not found"
+    );
   }
 
-  // Delete all variants
+  // ==========================================================
+  // GET CLOUDINARY PUBLIC IDS
+  // ==========================================================
+
+  const imagePublicIds =
+    Array.isArray(product.images)
+      ? product.images
+          .map(
+            (image) =>
+              image?.publicId
+          )
+          .filter(Boolean)
+      : [];
+
+  // ==========================================================
+  // DELETE ALL VARIANTS
+  // ==========================================================
+
   await Variant.deleteMany({
     product: productId,
   });
 
-  // Delete product
+  // ==========================================================
+  // DELETE PRODUCT
+  // ==========================================================
+
   await Product.findByIdAndDelete(
     productId
   );
 
+  // ==========================================================
+  // RETURN
+  // ==========================================================
+
   return {
     productId,
     deleted: true,
+    imagePublicIds,
   };
 };
 
@@ -433,19 +808,22 @@ export const deleteProduct = async (
 export const activateProduct = async (
   productId
 ) => {
-  const product = await Product.findByIdAndUpdate(
-    productId,
-    {
-      isActive: true,
-    },
-    {
-      new: true,
-      runValidators: true,
-    }
-  );
+  const product =
+    await Product.findByIdAndUpdate(
+      productId,
+      {
+        isActive: true,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
   if (!product) {
-    throw new Error("Product not found");
+    throw new Error(
+      "Product not found"
+    );
   }
 
   return product;
@@ -455,26 +833,28 @@ export const activateProduct = async (
 // DEACTIVATE PRODUCT
 // ============================================================
 
-export const deactivateProduct = async (
-  productId
-) => {
-  const product = await Product.findByIdAndUpdate(
-    productId,
-    {
-      isActive: false,
-    },
-    {
-      new: true,
-      runValidators: true,
+export const deactivateProduct =
+  async (productId) => {
+    const product =
+      await Product.findByIdAndUpdate(
+        productId,
+        {
+          isActive: false,
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
+
+    if (!product) {
+      throw new Error(
+        "Product not found"
+      );
     }
-  );
 
-  if (!product) {
-    throw new Error("Product not found");
-  }
-
-  return product;
-};
+    return product;
+  };
 
 // ============================================================
 // CREATE VARIANT
@@ -484,13 +864,24 @@ export const createVariant = async (
   productId,
   data
 ) => {
-  const product = await Product.findById(
-    productId
-  );
+  // ----------------------------------------------------------
+  // FIND PRODUCT
+  // ----------------------------------------------------------
+
+  const product =
+    await Product.findById(
+      productId
+    );
 
   if (!product) {
-    throw new Error("Product not found");
+    throw new Error(
+      "Product not found"
+    );
   }
+
+  // ----------------------------------------------------------
+  // GET DATA
+  // ----------------------------------------------------------
 
   const {
     weight,
@@ -501,8 +892,14 @@ export const createVariant = async (
     isActive = true,
   } = data;
 
+  // ----------------------------------------------------------
+  // VALIDATE WEIGHT
+  // ----------------------------------------------------------
+
   if (!weight) {
-    throw new Error("Weight is required");
+    throw new Error(
+      "Weight is required"
+    );
   }
 
   if (Number(weight) <= 0) {
@@ -511,11 +908,20 @@ export const createVariant = async (
     );
   }
 
-  const price = calculateVariantPrice(
-    product.pricePerGram,
-    weight,
-    weightUnit
-  );
+  // ----------------------------------------------------------
+  // CALCULATE PRICE
+  // ----------------------------------------------------------
+
+  const price =
+    calculateVariantPrice(
+      product.pricePerGram,
+      weight,
+      weightUnit
+    );
+
+  // ----------------------------------------------------------
+  // VALIDATE DISCOUNT PRICE
+  // ----------------------------------------------------------
 
   if (
     discountPrice !== null &&
@@ -526,7 +932,10 @@ export const createVariant = async (
     );
   }
 
-  // Check duplicate variant
+  // ----------------------------------------------------------
+  // CHECK DUPLICATE VARIANT
+  // ----------------------------------------------------------
+
   const existingVariant =
     await Variant.findOne({
       product: productId,
@@ -540,6 +949,10 @@ export const createVariant = async (
     );
   }
 
+  // ----------------------------------------------------------
+  // CREATE VARIANT
+  // ----------------------------------------------------------
+
   return Variant.create({
     product: productId,
     weight,
@@ -552,7 +965,6 @@ export const createVariant = async (
   });
 };
 
-
 // ============================================================
 // UPDATE VARIANT
 // ============================================================
@@ -561,11 +973,19 @@ export const updateVariant = async (
   variantId,
   data
 ) => {
+  // ----------------------------------------------------------
+  // FIND VARIANT
+  // ----------------------------------------------------------
+
   const variant =
-    await Variant.findById(variantId);
+    await Variant.findById(
+      variantId
+    );
 
   if (!variant) {
-    throw new Error("Variant not found");
+    throw new Error(
+      "Variant not found"
+    );
   }
 
   // ----------------------------------------------------------
@@ -578,12 +998,14 @@ export const updateVariant = async (
     );
 
   if (!product) {
-    throw new Error("Product not found");
+    throw new Error(
+      "Product not found"
+    );
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // GET UPDATED WEIGHT / UNIT
-  // ----------------------------------------------------------
+  // ==========================================================
 
   const weight =
     data.weight !== undefined
@@ -605,14 +1027,9 @@ export const updateVariant = async (
     );
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // CHECK DUPLICATE VARIANT
-  // ----------------------------------------------------------
-  // A product cannot have two variants with
-  // the same weight + weightUnit.
-  //
-  // Exclude the current variant from the search.
-  // ----------------------------------------------------------
+  // ==========================================================
 
   const duplicateVariant =
     await Variant.findOne({
@@ -638,28 +1055,29 @@ export const updateVariant = async (
     throw error;
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // PRICE
-  // ----------------------------------------------------------
-  // If admin sends price, use that price.
+  // ==========================================================
   //
-  // Example:
-  // {
-  //   "weight": 1,
-  //   "weightUnit": "kg",
-  //   "price": 500
-  // }
+  // Admin can manually update variant price.
   //
-  // Then price will be 500, NOT recalculated from
-  // product.pricePerGram.
+  // If price is not provided,
+  // existing price remains unchanged.
   //
-  // If price is not provided, keep the existing price.
-  // ----------------------------------------------------------
+  // ==========================================================
 
   let price;
 
   if (data.price !== undefined) {
     price = Number(data.price);
+
+    if (
+      Number.isNaN(price)
+    ) {
+      throw new Error(
+        "Price must be a valid number"
+      );
+    }
 
     if (price < 0) {
       throw new Error(
@@ -670,9 +1088,9 @@ export const updateVariant = async (
     price = variant.price;
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // UPDATE DATA
-  // ----------------------------------------------------------
+  // ==========================================================
 
   const updateData = {
     weight,
@@ -680,14 +1098,19 @@ export const updateVariant = async (
     price,
   };
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // DISCOUNT PRICE
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (data.discountPrice !== undefined) {
+  if (
+    data.discountPrice !==
+    undefined
+  ) {
     if (
       data.discountPrice !== null &&
-      Number(data.discountPrice) < 0
+      Number(
+        data.discountPrice
+      ) < 0
     ) {
       throw new Error(
         "Discount price cannot be negative"
@@ -696,7 +1119,9 @@ export const updateVariant = async (
 
     if (
       data.discountPrice !== null &&
-      Number(data.discountPrice) > price
+      Number(
+        data.discountPrice
+      ) > price
     ) {
       throw new Error(
         "Discount price cannot be greater than variant price"
@@ -706,35 +1131,44 @@ export const updateVariant = async (
     updateData.discountPrice =
       data.discountPrice === null
         ? null
-        : Number(data.discountPrice);
+        : Number(
+            data.discountPrice
+          );
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // SKU
-  // ----------------------------------------------------------
+  // ==========================================================
 
   if (data.sku !== undefined) {
     updateData.sku = data.sku;
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // ACTIVE STATUS
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (data.isActive !== undefined) {
+  if (
+    data.isActive !== undefined
+  ) {
     updateData.isActive =
       data.isActive;
   }
 
-  // ----------------------------------------------------------
-  // DO NOT UPDATE STOCK HERE
-  // ----------------------------------------------------------
+  // ==========================================================
+  // STOCK IS NOT UPDATED HERE
+  // ==========================================================
+  //
   // Stock has its own endpoint:
   //
-  // PATCH /api/admin/products/variants/:variantId/stock
+  // PATCH
+  // /api/admin/products/variants/:variantId/stock
   //
-  // Therefore stock is intentionally NOT included here.
-  // ----------------------------------------------------------
+  // ==========================================================
+
+  // ==========================================================
+  // UPDATE VARIANT
+  // ==========================================================
 
   const updatedVariant =
     await Variant.findByIdAndUpdate(
@@ -747,12 +1181,13 @@ export const updateVariant = async (
     );
 
   if (!updatedVariant) {
-    throw new Error("Variant not found");
+    throw new Error(
+      "Variant not found"
+    );
   }
 
   return updatedVariant;
 };
-
 
 // ============================================================
 // DELETE VARIANT
@@ -767,7 +1202,9 @@ export const deleteVariant = async (
     );
 
   if (!variant) {
-    throw new Error("Variant not found");
+    throw new Error(
+      "Variant not found"
+    );
   }
 
   return {
@@ -780,35 +1217,48 @@ export const deleteVariant = async (
 // UPDATE VARIANT STOCK
 // ============================================================
 
-export const updateVariantStock = async (
-  variantId,
-  stock
-) => {
-  if (stock === undefined) {
-    throw new Error("Stock is required");
-  }
+export const updateVariantStock =
+  async (
+    variantId,
+    stock
+  ) => {
+    // --------------------------------------------------------
+    // VALIDATE STOCK
+    // --------------------------------------------------------
 
-  if (Number(stock) < 0) {
-    throw new Error(
-      "Stock cannot be negative"
-    );
-  }
+    if (stock === undefined) {
+      throw new Error(
+        "Stock is required"
+      );
+    }
 
-  const variant =
-    await Variant.findByIdAndUpdate(
-      variantId,
-      {
-        stock: Number(stock),
-      },
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
+    if (Number(stock) < 0) {
+      throw new Error(
+        "Stock cannot be negative"
+      );
+    }
 
-  if (!variant) {
-    throw new Error("Variant not found");
-  }
+    // --------------------------------------------------------
+    // UPDATE STOCK
+    // --------------------------------------------------------
 
-  return variant;
-};
+    const variant =
+      await Variant.findByIdAndUpdate(
+        variantId,
+        {
+          stock: Number(stock),
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
+
+    if (!variant) {
+      throw new Error(
+        "Variant not found"
+      );
+    }
+
+    return variant;
+  };

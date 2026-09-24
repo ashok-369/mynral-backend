@@ -18,7 +18,15 @@ res,
 next
 ) => {
 try {
-const customerId = req.user.id;
+const customerId = req.customer?.id || req.user?.id;
+
+    if (!customerId) {
+      return res.status(401).json({
+        success: false,
+        statusCode: 401,
+        message: "Customer authentication required",
+      });
+    }
 
 
 const page = Number(req.query.page) || 1;
@@ -63,7 +71,15 @@ next(error);
 export const getUnreadNotificationCount =
 async (req, res, next) => {
 try {
-const customerId = req.user.id;
+const customerId = req.customer?.id || req.user?.id;
+
+    if (!customerId) {
+      return res.status(401).json({
+        success: false,
+        statusCode: 401,
+        message: "Customer authentication required",
+      });
+    }
 
 
   const count =
@@ -97,7 +113,15 @@ res,
 next
 ) => {
 try {
-const customerId = req.user.id;
+const customerId = req.customer?.id || req.user?.id;
+
+    if (!customerId) {
+      return res.status(401).json({
+        success: false,
+        statusCode: 401,
+        message: "Customer authentication required",
+      });
+    }
 
 
 const notification =
@@ -144,7 +168,15 @@ res,
 next
 ) => {
 try {
-const customerId = req.user.id;
+const customerId = req.customer?.id || req.user?.id;
+
+    if (!customerId) {
+      return res.status(401).json({
+        success: false,
+        statusCode: 401,
+        message: "Customer authentication required",
+      });
+    }
 
 const result =
   await markAllNotificationsAsRead(
@@ -175,7 +207,15 @@ next(error);
 export const deleteCustomerNotification =
 async (req, res, next) => {
 try {
-const customerId = req.user.id;
+const customerId = req.customer?.id || req.user?.id;
+
+    if (!customerId) {
+      return res.status(401).json({
+        success: false,
+        statusCode: 401,
+        message: "Customer authentication required",
+      });
+    }
 
 
   const notification =
@@ -213,7 +253,15 @@ const customerId = req.user.id;
 export const deleteReadNotifications =
 async (req, res, next) => {
 try {
-const customerId = req.user.id;
+const customerId = req.customer?.id || req.user?.id;
+
+    if (!customerId) {
+      return res.status(401).json({
+        success: false,
+        statusCode: 401,
+        message: "Customer authentication required",
+      });
+    }
 
 
   const result =
